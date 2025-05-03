@@ -1,3 +1,6 @@
+import { redirect } from 'next/navigation';
+
 export default function Home() {
-  return <></>;
+  // Redirect to the calendar page by default
+  redirect('/calendar');
 }
