@@ -20,6 +20,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Switch } from '@/components/ui/switch'; // Added import for Switch
 import { Droplet, Zap, CloudRain, Wind, Smile, StickyNote, ShieldCheck, Ban } from 'lucide-react'; // Example icons
 
 
