@@ -36,7 +36,6 @@ export default function SettingsPage() {
     const [deleteConfirmInput, setDeleteConfirmInput] = React.useState(''); // State for delete confirmation input
 
     // -- Appearance State --
-    // Use state that defaults to light/coral, but gets overridden by localStorage in useEffect
     const [theme, setTheme] = React.useState<Theme>('light');
     const [accentColor, setAccentColor] = React.useState<AccentColor>('coral');
 
@@ -44,41 +43,48 @@ export default function SettingsPage() {
     const [avgCycleLength, setAvgCycleLength] = React.useState<number | null>(null);
     const [avgPeriodLength, setAvgPeriodLength] = React.useState<number | null>(null);
 
-    // TODO: State for reminders and security - load/save from a dedicated settings storage
+    // -- Reminder State --
     const [periodReminder, setPeriodReminder] = React.useState<boolean>(true);
     const [fertileReminder, setFertileReminder] = React.useState<boolean>(true);
-    const [appLock, setAppLock] = React.useState<boolean>(false);
 
+    // -- Security State --
+    const [appLock, setAppLock] = React.useState<boolean>(false); // Still disabled
 
-    // --- Effects for Appearance ---
+    // --- Effects for Appearance and Reminders ---
 
-    // Load Appearance settings from localStorage on mount
+    // Load Appearance & Reminder settings from localStorage on mount
     React.useEffect(() => {
         const storedTheme = localStorage.getItem('theme') as Theme | null;
         const storedAccent = localStorage.getItem('accentColor') as AccentColor | null;
+        const storedPeriodReminder = localStorage.getItem('periodReminder');
+        const storedFertileReminder = localStorage.getItem('fertileReminder');
 
-        // Set theme, defaulting to 'light' if invalid or not found
+        // Set theme
         if (storedTheme && ['light', 'dark'].includes(storedTheme)) {
             setTheme(storedTheme);
         } else {
-            setTheme('light'); // Default to light
-            localStorage.setItem('theme', 'light'); // Store the default if needed
+            setTheme('light');
+            localStorage.setItem('theme', 'light');
         }
 
-        // Set accent, defaulting to 'coral'
+        // Set accent
         if (storedAccent && ['coral', 'gold'].includes(storedAccent)) {
             setAccentColor(storedAccent);
         } else {
             setAccentColor('coral');
             localStorage.setItem('accentColor', 'coral');
         }
+
+        // Set reminders (default to true if not found or invalid)
+        setPeriodReminder(storedPeriodReminder ? JSON.parse(storedPeriodReminder) : true);
+        setFertileReminder(storedFertileReminder ? JSON.parse(storedFertileReminder) : true);
+
     }, []);
 
     // Apply theme class to HTML element
     React.useEffect(() => {
         const root = window.document.documentElement;
         root.classList.remove('light', 'dark');
-        // Apply the selected theme directly (no 'system' option)
         root.classList.add(theme);
     }, [theme]);
 
@@ -98,7 +104,13 @@ export default function SettingsPage() {
          const cycleLengths: number[] = [];
 
          const sortedDates = Object.keys(logData)
-             .filter(dateString => isValid(parseISO(dateString)))
+             .filter(dateString => {
+                 try {
+                     return isValid(parseISO(dateString));
+                 } catch {
+                     return false; // Filter out invalid date strings safely
+                 }
+             })
              .sort((a, b) => parseISO(a).getTime() - parseISO(b).getTime());
 
           sortedDates.forEach((dateString) => {
@@ -126,51 +138,37 @@ export default function SettingsPage() {
                  // --- Calculate Period Length for the period starting 'date' ---
                   let endDate: Date | null = null;
                   let lastFlowDate = date; // Initialize with the start date
+                  let foundExplicitEnd = false;
 
-                  // Iterate forwards from the start date
-                  let tempDate = date;
-                  while (true) {
-                      const tempDateString = format(tempDate, 'yyyy-MM-dd');
-                      const tempEntry = logData[tempDateString];
+                  // Iterate forwards from the start date within the sorted log entries
+                   const startIndex = sortedDates.indexOf(dateString);
+                   for (let i = startIndex; i < sortedDates.length; i++) {
+                        const currentDateString = sortedDates[i];
+                        const currentDate = parseISO(currentDateString);
+                        const currentEntry = logData[currentDateString];
 
-                      // Check if it's an explicitly marked end day
-                      if (tempEntry?.isPeriodEnd) {
-                          endDate = tempDate;
-                          break; // Found the end marker
-                      }
+                        // Check if we've gone past a reasonable period duration or into the next cycle
+                        if (differenceInDays(currentDate, date) > 20) break; // Limit search
+                        if (periodStartDates.length > cycleLengths.length + 1 && isAfter(currentDate, periodStartDates[periodStartDates.length-1])) break; // Stop if next cycle start is found
 
-                      // Check if the *next* day exists and has no flow
-                      const nextDay = addDays(tempDate, 1);
-                      const nextDayString = format(nextDay, 'yyyy-MM-dd');
-                      const nextEntry = logData[nextDayString];
-
-                      if (!nextEntry || !nextEntry.periodFlow || nextEntry.periodFlow === 'none') {
-                          // If next day has no flow or doesn't exist, the current day is the last flow day
-                          // Use this as the end date *only if* no explicit end marker was found later
-                           lastFlowDate = tempDate;
-                           // Don't break yet, keep checking for an explicit 'isPeriodEnd' marker further out
-                           // break; // Removed break to allow searching for explicit end marker
-                      }
-
-                      // Move to the next day
-                      tempDate = addDays(tempDate, 1);
-
-                       // Safety break: Stop searching after a reasonable duration (e.g., 30 days)
-                       if (differenceInDays(tempDate, date) > 30) {
-                           break;
-                       }
-
-                       // Stop if we've passed the *next* period start date (if available)
-                       if (periodStartDates.length > cycleLengths.length + 1) { // Check if next start date exists
-                            const nextStartDate = periodStartDates[periodStartDates.length - 1];
-                            if (isAfter(tempDate, nextStartDate)) {
-                                break;
-                            }
+                        // Found explicit end marker
+                        if (currentEntry?.isPeriodEnd) {
+                            endDate = currentDate;
+                            foundExplicitEnd = true;
+                            break;
                         }
-                  }
 
-                 // Use explicit end date if found, otherwise use the last consecutive flow day
-                 const finalEndDate = endDate ?? lastFlowDate;
+                        // Track last day with flow if no explicit end marker found yet
+                        if (!foundExplicitEnd && currentEntry?.periodFlow && currentEntry.periodFlow !== 'none') {
+                             if (isAfter(currentDate, lastFlowDate)) {
+                                lastFlowDate = currentDate;
+                             }
+                        }
+                   }
+
+
+                  // Determine the final end date
+                  const finalEndDate = endDate ?? (isAfter(lastFlowDate, date) ? lastFlowDate : date); // Use last flow date if > start date, otherwise assume 1 day
 
                   const length = differenceInDays(finalEndDate, date) + 1;
                   if (length > 0 && length < 20) { // Basic validation
@@ -201,6 +199,25 @@ export default function SettingsPage() {
         toast({ title: "Accent Color Updated", description: `Accent set to ${validAccent}.` });
     };
 
+    const handlePeriodReminderChange = (checked: boolean) => {
+        setPeriodReminder(checked);
+        localStorage.setItem('periodReminder', JSON.stringify(checked));
+        toast({
+            title: "Reminder Updated",
+            description: `Period start reminder ${checked ? 'enabled' : 'disabled'}.`,
+        });
+        // TODO: Implement actual notification scheduling/cancelling logic here or in a service worker
+    };
+
+    const handleFertileReminderChange = (checked: boolean) => {
+        setFertileReminder(checked);
+        localStorage.setItem('fertileReminder', JSON.stringify(checked));
+        toast({
+            title: "Reminder Updated",
+            description: `Fertile window reminder ${checked ? 'enabled' : 'disabled'}.`,
+        });
+        // TODO: Implement actual notification scheduling/cancelling logic here or in a service worker
+    };
 
     const handleBackup = () => {
         console.log("Backup initiated");
@@ -254,30 +271,30 @@ export default function SettingsPage() {
                 </CardContent>
             </Card>
 
-            {/* Reminders */}
+            {/* Reminders - Enabled */}
              <Card>
                 <CardHeader>
-                    <CardTitle className="text-lg flex items-center"><Bell className="mr-2 h-5 w-5"/>Reminders</CardTitle>
-                    <CardDescription>Manage your notifications (feature coming soon).</CardDescription>
+                    <CardTitle className="text-lg flex items-center"><Bell className="mr-2 h-5 w-5 text-accent"/>Reminders</CardTitle>
+                    <CardDescription>Manage your cycle notifications. (Actual notifications require app setup)</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    {/* Still disabled */}
-                    <div className="flex items-center justify-between opacity-50 cursor-not-allowed">
-                        <Label htmlFor="period-reminder" className="flex-1">Period Start Prediction</Label>
+                    {/* Enabled */}
+                    <div className="flex items-center justify-between">
+                        <Label htmlFor="period-reminder" className="flex-1 pr-4">Period Start Prediction</Label>
                         <Switch
                             id="period-reminder"
                             checked={periodReminder}
-                            onCheckedChange={setPeriodReminder}
-                            disabled
+                            onCheckedChange={handlePeriodReminderChange}
+                            aria-label="Toggle period start prediction reminder"
                         />
                     </div>
-                    <div className="flex items-center justify-between opacity-50 cursor-not-allowed">
-                        <Label htmlFor="fertile-reminder" className="flex-1">Fertile Window Start</Label>
+                    <div className="flex items-center justify-between">
+                        <Label htmlFor="fertile-reminder" className="flex-1 pr-4">Fertile Window Start</Label>
                          <Switch
                             id="fertile-reminder"
                             checked={fertileReminder}
-                            onCheckedChange={setFertileReminder}
-                            disabled
+                            onCheckedChange={handleFertileReminderChange}
+                            aria-label="Toggle fertile window start reminder"
                         />
                     </div>
                 </CardContent>
@@ -286,10 +303,10 @@ export default function SettingsPage() {
              {/* Appearance - Enabled */}
             <Card>
                 <CardHeader>
-                    <CardTitle className="text-lg flex items-center"><Palette className="mr-2 h-5 w-5"/>Appearance</CardTitle>
+                    <CardTitle className="text-lg flex items-center"><Palette className="mr-2 h-5 w-5 text-accent"/>Appearance</CardTitle>
                      <CardDescription>Customize the look and feel of the app.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6"> {/* Removed opacity/disabled */}
+                <CardContent className="space-y-6">
                      <div>
                          <Label className="mb-2 block">Theme</Label>
                          <RadioGroup value={theme} onValueChange={handleThemeChange} className="flex space-x-4">
@@ -309,12 +326,11 @@ export default function SettingsPage() {
                          <RadioGroup value={accentColor} onValueChange={handleAccentChange} className="flex space-x-4">
                             <div className="flex items-center space-x-2">
                                 <RadioGroupItem value="coral" id="accent-coral" />
-                                {/* Apply inline style for preview, but actual color comes from CSS variables */}
-                                <Label htmlFor="accent-coral" style={{ color: 'hsl(var(--accent-coral))' }}>Coral</Label> {/* Updated style access */}
+                                <Label htmlFor="accent-coral" style={{ color: 'hsl(var(--accent-coral))' }}>Coral</Label>
                             </div>
                              <div className="flex items-center space-x-2">
                                 <RadioGroupItem value="gold" id="accent-gold" />
-                                <Label htmlFor="accent-gold" style={{ color: 'hsl(var(--accent-gold))' }}>Gold</Label> {/* Updated style access */}
+                                <Label htmlFor="accent-gold" style={{ color: 'hsl(var(--accent-gold))' }}>Gold</Label>
                             </div>
                          </RadioGroup>
                     </div>
@@ -329,12 +345,13 @@ export default function SettingsPage() {
                 </CardHeader>
                 <CardContent className="space-y-4 opacity-50 cursor-not-allowed">
                      <div className="flex items-center justify-between">
-                        <Label htmlFor="app-lock" className="flex-1">Enable App Lock (PIN/Biometrics)</Label>
+                        <Label htmlFor="app-lock" className="flex-1 pr-4">Enable App Lock (PIN/Biometrics)</Label>
                         <Switch
                             id="app-lock"
                             checked={appLock}
                             onCheckedChange={setAppLock}
                             disabled
+                            aria-label="Toggle app lock (disabled)"
                         />
                     </div>
                      {appLock && <Button variant="outline" className="w-full" disabled>Set/Change PIN</Button>}
