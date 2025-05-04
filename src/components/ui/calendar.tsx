@@ -24,15 +24,15 @@ function Calendar({
       classNames={{
         months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
         month: "space-y-4",
-        caption: "flex justify-center pt-1 relative items-center px-4", // Added px-4 here
+        caption: "flex justify-center items-center h-14 border-b relative px-8", // Increased px-4 to px-8
         caption_label: "text-sm font-medium",
-        nav: "space-x-1 flex items-center", // Contains the buttons
+        nav: "flex items-center absolute inset-y-0", // Contains the buttons
         nav_button: cn(
           buttonVariants({ variant: "outline" }),
           "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100"
         ),
-        nav_button_previous: "absolute left-1", // Changed from left-2
-        nav_button_next: "absolute right-1", // Changed from right-2
+        nav_button_previous: "left-2", // Positioned left
+        nav_button_next: "right-2", // Positioned right
         table: "w-full border-collapse space-y-1",
         head_row: "flex",
         head_cell:
@@ -71,5 +71,3 @@ function Calendar({
 Calendar.displayName = "Calendar"
 
 export { Calendar }
-
-    
