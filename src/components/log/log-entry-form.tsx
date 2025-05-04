@@ -65,10 +65,9 @@ const logEntrySchema = z.object({
 }).refine(data => (data.sexualActivityCount ?? 0) > 0 ? data.protectionUsed !== undefined : true, {
     message: "Please specify if protection was used.",
     path: ["protectionUsed"], // Path of the error
-}).refine(data => !(data.isPeriodEnd && data.periodFlow === 'none'), {
-    message: "Cannot mark end of period without selecting a flow intensity.",
-    path: ["isPeriodEnd"], // Path of the error
 });
+// Removed the refine rule that prevents marking end of period without flow,
+// as the form now handles this interaction dynamically and on save.
 
 
 type LogEntryFormValues = z.infer<typeof logEntrySchema>;
@@ -126,12 +125,12 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
     const activityOccurred = (logDataToSave.sexualActivityCount ?? 0) > 0;
 
     // Ensure protectionUsed and orgasm are only saved if activity occurred
-    // Ensure isPeriodEnd is false if periodFlow is 'none'
+    // Ensure isPeriodEnd is false if periodFlow is 'none' - CRITICAL for saving logic
     const finalLogData: Omit<LogData, 'date'> = {
         ...logDataToSave,
         protectionUsed: activityOccurred ? logDataToSave.protectionUsed ?? false : undefined,
         orgasm: activityOccurred ? logDataToSave.orgasm ?? false : undefined,
-        isPeriodEnd: logDataToSave.periodFlow !== 'none' ? logDataToSave.isPeriodEnd : false,
+        isPeriodEnd: logDataToSave.periodFlow !== 'none' ? logDataToSave.isPeriodEnd : false, // Reset if flow is none on save
         sexualActivityCount: Math.max(0, logDataToSave.sexualActivityCount ?? 0),
     };
 
@@ -145,7 +144,7 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
     router.push('/calendar');
   }
 
-  // Watch sexualActivityCount field to conditionally render protectionUsed/orgasm
+  // Watch fields to manage interactions
   const watchSexualActivityCount = form.watch('sexualActivityCount');
   const watchPeriodFlow = form.watch('periodFlow');
   const watchIsPeriodEnd = form.watch('isPeriodEnd');
@@ -169,14 +168,7 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
   }, [watchSexualActivityCount, form]);
 
 
-    // If period flow is set to 'none', ensure 'isPeriodEnd' is false
-    React.useEffect(() => {
-        if (watchPeriodFlow === 'none' && watchIsPeriodEnd) {
-            form.setValue('isPeriodEnd', false, { shouldValidate: true });
-        }
-    }, [watchPeriodFlow, watchIsPeriodEnd, form]);
-
-     // If 'isPeriodEnd' is toggled on, but flow is 'none', set flow to 'light' (or last known?)
+    // If 'isPeriodEnd' is toggled on, but flow is 'none', set flow to 'light' (or last known?)
     React.useEffect(() => {
         if (watchIsPeriodEnd && watchPeriodFlow === 'none') {
             form.setValue('periodFlow', 'light', { shouldValidate: true }); // Default to light if ending period with no flow selected
@@ -258,13 +250,16 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
                          <FlagOff className="mr-2 h-5 w-5 text-red-600"/> Mark as Last Day of Period
                         </FormLabel>
                         <FormMessage className="text-xs" />
+                         <FormDescription className="text-xs">
+                            If checked with 'None' flow, flow will be set to 'Light'.
+                         </FormDescription>
                     </div>
                     <FormControl>
                         <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                        disabled={watchPeriodFlow === 'none' && !field.value} // Disable if flow is none unless it's already checked (to allow unchecking)
-                        aria-label="Mark as Last Day of Period"
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            // Removed disabled prop to allow clicking even with 'none' flow
+                            aria-label="Mark as Last Day of Period"
                         />
                     </FormControl>
                     </FormItem>
@@ -288,48 +283,69 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
                     {symptomOptions.map((item) => {
                       const Icon = item.icon;
                       const isChecked = field.value?.includes(item.id);
+                      const checkboxId = `symptom-checkbox-${item.id}`; // Unique ID for checkbox
+                      const labelId = `symptom-label-${item.id}`; // Unique ID for label
                       return (
-                        <FormItem
+                        <div // Use div instead of FormItem for better click area control
                           key={item.id}
                           className={cn(
                             "flex flex-col items-center space-y-1 border rounded-lg p-3 hover:bg-muted/50 transition-colors cursor-pointer",
                             isChecked && "bg-accent/10 border-accent text-accent"
                           )}
-                          // Wrapper div for click handling to toggle checkbox
-                          onClick={() => {
+                          onClick={() => { // Main click handler
                               const currentSymptoms = field.value || [];
                               const checked = !isChecked;
-                                if (checked) {
+                              if (checked) {
                                   field.onChange([...currentSymptoms, item.id]);
-                                } else {
+                              } else {
                                   field.onChange(currentSymptoms.filter((value) => value !== item.id));
-                                }
+                              }
                           }}
+                          role="checkbox" // Role for accessibility
+                          aria-checked={isChecked}
+                          aria-labelledby={labelId} // Associate with label
+                          tabIndex={0} // Make it focusable
+                           onKeyDown={(e) => { // Keyboard support
+                               if (e.key === ' ' || e.key === 'Enter') {
+                                   e.preventDefault(); // Prevent space scrolling
+                                   const currentSymptoms = field.value || [];
+                                   const checked = !isChecked;
+                                    if (checked) {
+                                       field.onChange([...currentSymptoms, item.id]);
+                                   } else {
+                                       field.onChange(currentSymptoms.filter((value) => value !== item.id));
+                                   }
+                               }
+                           }}
                         >
                           <FormControl className="sr-only">
-                            {/* Checkbox is visually hidden but functional */}
+                            {/* Checkbox is visually hidden but necessary for forms/accessibility */}
                             <Checkbox
+                              id={checkboxId} // Assign unique ID
                               checked={isChecked}
-                              onCheckedChange={(checked) => { // This might not be needed if wrapper handles click
+                              // This onChange might be redundant if div handles click, but keep for safety/semantics
+                              onCheckedChange={(checkedState) => {
                                 const currentSymptoms = field.value || [];
-                                if (checked) {
+                                if (checkedState) {
                                   field.onChange([...currentSymptoms, item.id]);
                                 } else {
                                   field.onChange(currentSymptoms.filter((value) => value !== item.id));
                                 }
                               }}
-                              aria-labelledby={`symptom-label-${item.id}`}
+                              tabIndex={-1} // Remove from tab order as div handles it
+                              aria-hidden="true" // Hide from accessibility tree as div handles it
                             />
                           </FormControl>
                            <Icon className={cn("h-6 w-6 mb-1", isChecked ? "text-accent" : "text-muted-foreground")} />
                           <FormLabel
-                            id={`symptom-label-${item.id}`}
+                            id={labelId} // Assign unique ID
+                            htmlFor={checkboxId} // Link to hidden checkbox
                             className="font-normal text-sm text-center cursor-pointer"
-                            // Use htmlFor with the Checkbox's implicit ID or a manually set one
+                            onClick={(e) => e.stopPropagation()} // Prevent double toggle if label is clicked directly
                           >
                             {item.label}
                           </FormLabel>
-                        </FormItem>
+                        </div>
                       );
                     })}
                   </div>
