@@ -218,15 +218,17 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
                      <ToggleGroup
                         type="single"
                         variant="outline"
-                        value={field.value === 'none' ? '' : field.value} // Handle 'none' case for ToggleGroup
+                        value={field.value} // Value directly corresponds to enum
                         onValueChange={(value) => {
                             // If the same value is clicked again, it returns '', treat as 'none'
+                            // If no value is selected (deselected), default to 'none'
                             const newValue = value || 'none';
                             field.onChange(newValue as 'none' | 'light' | 'medium' | 'heavy');
                         }}
                         className="justify-start flex-wrap gap-2" // Added gap
                         >
-                         <ToggleGroupItem value="" aria-label="No flow" className="flex flex-col h-auto p-2 border rounded-lg data-[state=on]:bg-secondary data-[state=on]:border-primary data-[state=on]:text-primary">
+                         {/* Use 'none' as the value */}
+                         <ToggleGroupItem value="none" aria-label="No flow" className="flex flex-col h-auto p-2 border rounded-lg data-[state=on]:bg-secondary data-[state=on]:border-primary data-[state=on]:text-primary">
                             <Ban className="h-5 w-5 mb-1"/> None
                         </ToggleGroupItem>
                         {flowOptions.map((option) => (
@@ -293,12 +295,22 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
                             "flex flex-col items-center space-y-1 border rounded-lg p-3 hover:bg-muted/50 transition-colors cursor-pointer",
                             isChecked && "bg-accent/10 border-accent text-accent"
                           )}
-                          // No onClick needed here, handled by Checkbox
+                          // Wrapper div for click handling to toggle checkbox
+                          onClick={() => {
+                              const currentSymptoms = field.value || [];
+                              const checked = !isChecked;
+                                if (checked) {
+                                  field.onChange([...currentSymptoms, item.id]);
+                                } else {
+                                  field.onChange(currentSymptoms.filter((value) => value !== item.id));
+                                }
+                          }}
                         >
-                          <FormControl>
+                          <FormControl className="sr-only">
+                            {/* Checkbox is visually hidden but functional */}
                             <Checkbox
                               checked={isChecked}
-                              onCheckedChange={(checked) => {
+                              onCheckedChange={(checked) => { // This might not be needed if wrapper handles click
                                 const currentSymptoms = field.value || [];
                                 if (checked) {
                                   field.onChange([...currentSymptoms, item.id]);
@@ -306,7 +318,6 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
                                   field.onChange(currentSymptoms.filter((value) => value !== item.id));
                                 }
                               }}
-                              className="sr-only" // Keep checkbox hidden visually
                               aria-labelledby={`symptom-label-${item.id}`}
                             />
                           </FormControl>
