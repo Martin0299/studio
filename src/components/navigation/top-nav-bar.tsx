@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { CalendarDays, PlusCircle, BarChart3, Settings } from 'lucide-react';
+import { CalendarDays, PlusCircle, BarChart3, Settings, BrainCircuit } from 'lucide-react'; // Added BrainCircuit
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { href: '/calendar', label: 'Calendar', icon: CalendarDays },
   { href: '/log', label: 'Log', icon: PlusCircle },
   { href: '/insights', label: 'Insights', icon: BarChart3 },
+  { href: '/ai', label: 'AI', icon: BrainCircuit }, // Added AI item
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
