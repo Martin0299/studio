@@ -48,16 +48,17 @@ export default function SettingsPage() {
     const [fertileReminder, setFertileReminder] = React.useState<boolean>(true);
 
     // -- Security State --
-    const [appLock, setAppLock] = React.useState<boolean>(false); // Still disabled
+    const [appLock, setAppLock] = React.useState<boolean>(false); // Now reflects actual state
 
     // --- Effects for Appearance and Reminders ---
 
-    // Load Appearance & Reminder settings from localStorage on mount
+    // Load Appearance, Reminder & Security settings from localStorage on mount
     React.useEffect(() => {
         const storedTheme = localStorage.getItem('theme') as Theme | null;
         const storedAccent = localStorage.getItem('accentColor') as AccentColor | null;
         const storedPeriodReminder = localStorage.getItem('periodReminder');
         const storedFertileReminder = localStorage.getItem('fertileReminder');
+        const storedAppLock = localStorage.getItem('appLock'); // Load app lock state
 
         // Set theme
         if (storedTheme && ['light', 'dark'].includes(storedTheme)) {
@@ -78,6 +79,9 @@ export default function SettingsPage() {
         // Set reminders (default to true if not found or invalid)
         setPeriodReminder(storedPeriodReminder ? JSON.parse(storedPeriodReminder) : true);
         setFertileReminder(storedFertileReminder ? JSON.parse(storedFertileReminder) : true);
+
+        // Set app lock (default to false)
+        setAppLock(storedAppLock ? JSON.parse(storedAppLock) : false);
 
     }, []);
 
@@ -219,6 +223,28 @@ export default function SettingsPage() {
         // TODO: Implement actual notification scheduling/cancelling logic here or in a service worker
     };
 
+    const handleAppLockChange = (checked: boolean) => {
+        setAppLock(checked);
+        localStorage.setItem('appLock', JSON.stringify(checked));
+        toast({
+            title: "Security Setting Updated",
+            description: `App Lock ${checked ? 'enabled' : 'disabled'}.`,
+             variant: "default" // Or maybe "destructive" if disabling?
+        });
+        if (checked) {
+             console.log("App Lock enabled - initiate PIN setup flow (not implemented)");
+             toast({ title: "PIN Setup Required", description: "App lock setup is not yet implemented.", variant: "destructive" });
+        } else {
+            console.log("App Lock disabled - clear stored PIN (not implemented)");
+        }
+    };
+
+    const handleSetPin = () => {
+        console.log("Set/Change PIN initiated");
+        toast({ title: "PIN Management Not Implemented", description: "Setting or changing the PIN is not yet available.", variant: "destructive" });
+    };
+
+
     const handleBackup = () => {
         console.log("Backup initiated");
         toast({ title: "Backup Not Implemented", description: "Data backup feature is coming soon.", variant: "destructive" });
@@ -337,24 +363,32 @@ export default function SettingsPage() {
                 </CardContent>
             </Card>
 
-             {/* Security */}
+             {/* Security - Enabled */}
             <Card>
                 <CardHeader>
                     <CardTitle className="text-lg flex items-center"><Lock className="mr-2 h-5 w-5"/>Security</CardTitle>
-                    <CardDescription>Protect access to your app (feature coming soon).</CardDescription>
+                    <CardDescription>Protect access to your app. (Requires further setup for full functionality)</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4 opacity-50 cursor-not-allowed">
+                <CardContent className="space-y-4"> {/* Removed opacity and cursor-not-allowed */}
                      <div className="flex items-center justify-between">
                         <Label htmlFor="app-lock" className="flex-1 pr-4">Enable App Lock (PIN/Biometrics)</Label>
                         <Switch
                             id="app-lock"
                             checked={appLock}
-                            onCheckedChange={setAppLock}
-                            disabled
-                            aria-label="Toggle app lock (disabled)"
+                            onCheckedChange={handleAppLockChange}
+                            // No longer disabled
+                            aria-label="Toggle app lock"
                         />
                     </div>
-                     {appLock && <Button variant="outline" className="w-full" disabled>Set/Change PIN</Button>}
+                     {/* Button is only enabled if appLock is true, but still shows unimplemented toast */}
+                     <Button
+                        variant="outline"
+                        className="w-full"
+                        disabled={!appLock} // Enable button only when app lock is toggled on
+                        onClick={handleSetPin}
+                    >
+                        Set/Change PIN (Soon)
+                    </Button>
                 </CardContent>
             </Card>
 
