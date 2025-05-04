@@ -10,12 +10,13 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Button } from '@/components/ui/button';
-import { format, parseISO, startOfDay, isBefore, isAfter, isEqual, addDays, subDays, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
+import { format as formatDateFns, parseISO, startOfDay, isBefore, isAfter, isEqual, addDays, subDays, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns'; // Aliased format
 import Link from 'next/link';
-import { Droplet, Sparkles, HeartPulse, Smile, CloudRain, Zap, StickyNote, Info, CheckCircle, Wind, FlagOff, SmilePlus, ShieldCheck, Ban, Minus, Plus } from 'lucide-react';
+import { Droplet, Sparkles, HeartPulse, Smile, CloudRain, Zap, StickyNote, Info, CheckCircle, Wind, FlagOff, SmilePlus, ShieldCheck, Ban, Minus, Plus, ChevronLeft, ChevronRight } from 'lucide-react'; // Added Chevron icons
 import { useCycleData, LogData } from '@/context/CycleDataContext';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useNavigation, CaptionProps } from 'react-day-picker'; // Import necessary hooks/types
 
 // Structure for derived calendar data including period range info
 interface DayInfo {
@@ -34,7 +35,7 @@ interface DayInfo {
 
 // Enhanced prediction and period range calculation
 const calculateDayInfo = (date: Date, logs: Record<string, LogData>, allSortedPeriodDates: Date[]): DayInfo => {
-  const dateString = format(date, 'yyyy-MM-dd');
+  const dateString = formatDateFns(date, 'yyyy-MM-dd');
   const loggedData = logs[dateString];
 
   const isLoggedPeriod = loggedData?.periodFlow && loggedData.periodFlow !== 'none';
@@ -71,25 +72,47 @@ const calculateDayInfo = (date: Date, logs: Record<string, LogData>, allSortedPe
     for (const log of logsArray) {
         if (!log.date) continue; // Skip if date is missing (safety check)
         const logDate = parseISO(log.date);
+        // Check if logDate is after or equal to the start date AND if it's marked as the end
         if (!isBefore(logDate, lastPeriodStartDate) && log.isPeriodEnd) {
-            periodEndDate = logDate;
-            break; // Found the logged end for this cycle
+            // Additional check: ensure this end date corresponds to the current start date (no other start date in between)
+            let isCorrectEnd = true;
+            for (let k = allSortedPeriodDates.length - 1; k >= 0; k--) {
+                 const intermediateStartDate = allSortedPeriodDates[k];
+                 if (isAfter(intermediateStartDate, lastPeriodStartDate) && isBefore(intermediateStartDate, logDate)) {
+                    isCorrectEnd = false; // Found another period start before this end date
+                    break;
+                 }
+            }
+            if (isCorrectEnd) {
+               periodEndDate = logDate;
+               break; // Found the logged end for this cycle
+            }
         }
     }
+
 
     // Determine if the current date is the start, end, or within the range
     if (isEqual(date, lastPeriodStartDate)) {
         dayInfo.isPeriodStart = true;
     }
+    // Check if periodEndDate is valid and equals the current date
     if (periodEndDate && isEqual(date, periodEndDate)) {
-        // isPeriodEnd is already set from loggedData
+        // isPeriodEnd is already set from loggedData, but ensure consistency
+        dayInfo.isPeriodEnd = true;
     }
+
+    // Check if the date is strictly between the start and end dates
     if (periodEndDate && isAfter(date, lastPeriodStartDate) && isBefore(date, periodEndDate)) {
         dayInfo.isInPeriodRange = true;
     } else if (!periodEndDate && isAfter(date, lastPeriodStartDate) && isLoggedPeriod) {
         // If no end date logged yet, but it's a logged period day after the start, mark as in range
         dayInfo.isInPeriodRange = true;
     }
+     // Handle case where period starts and ends on the same day
+     if (dayInfo.isPeriodStart && dayInfo.isPeriodEnd) {
+         dayInfo.isInPeriodRange = false; // It's not *between* start and end if they are the same
+     }
+
   }
   // --- End Period Range Calculation ---
 
@@ -130,6 +153,38 @@ const calculateDayInfo = (date: Date, logs: Record<string, LogData>, allSortedPe
   return dayInfo;
 };
 
+// Custom Caption Component for better button placement
+function CustomCaption(props: CaptionProps) {
+    const { goToMonth, nextMonth, previousMonth } = useNavigation();
+    return (
+        <div className="flex justify-center items-center relative h-14 px-4 border-b">
+            <Button
+                disabled={!previousMonth}
+                onClick={() => previousMonth && goToMonth(previousMonth)}
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 absolute left-4" // Position left
+            >
+                 <ChevronLeft className="h-4 w-4" />
+                 <span className="sr-only">Go to previous month</span>
+            </Button>
+             <span className="text-lg font-semibold">
+                {formatDateFns(props.displayMonth, 'MMMM yyyy')}
+            </span>
+             <Button
+                disabled={!nextMonth}
+                onClick={() => nextMonth && goToMonth(nextMonth)}
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 absolute right-4" // Position right
+            >
+                 <ChevronRight className="h-4 w-4" />
+                 <span className="sr-only">Go to next month</span>
+            </Button>
+        </div>
+    );
+}
+
 
 export default function CalendarView() {
   const { logData, isLoading } = useCycleData(); // Removed refreshData, handled by context event listeners
@@ -149,7 +204,7 @@ export default function CalendarView() {
               if (!log.date) return false; // Safety check
               try {
                 const prevDay = subDays(parseISO(log.date), 1);
-                const prevDayString = format(prevDay, 'yyyy-MM-dd');
+                const prevDayString = formatDateFns(prevDay, 'yyyy-MM-dd');
                 const prevLog = logData[prevDayString];
                 return !prevLog || !prevLog.periodFlow || prevLog.periodFlow === 'none';
               } catch (e) {
@@ -163,7 +218,9 @@ export default function CalendarView() {
 
 
   React.useEffect(() => {
-    if (!isLoading) {
+    // Don't update if loading
+    if (isLoading) return;
+
       const newMonthDayInfo: Record<string, DayInfo> = {};
       // Iterate through days potentially visible (previous, current, next month)
       // For simplicity, recalculate for the current month display logic uses `displayMonth`
@@ -175,12 +232,12 @@ export default function CalendarView() {
        // Calculate info for all days in the current month
       displayDays.forEach(day => {
            const normalizedDay = startOfDay(day);
-           const dateString = format(normalizedDay, 'yyyy-MM-dd');
+           const dateString = formatDateFns(normalizedDay, 'yyyy-MM-dd');
            newMonthDayInfo[dateString] = calculateDayInfo(normalizedDay, logData, allSortedPeriodStartDates);
       });
 
       setMonthDayInfo(newMonthDayInfo);
-    }
+
   }, [currentMonth, logData, isLoading, allSortedPeriodStartDates]);
 
 
@@ -193,7 +250,7 @@ export default function CalendarView() {
 
   const renderDayContent = (date: Date, displayMonth: Date): React.ReactNode => {
     const normalizedDay = startOfDay(date);
-    const dateString = format(normalizedDay, 'yyyy-MM-dd');
+    const dateString = formatDateFns(normalizedDay, 'yyyy-MM-dd');
     const isOutside = normalizedDay.getMonth() !== displayMonth.getMonth();
     const isFutureDate = isAfter(normalizedDay, today); // Check if it's a future date
 
@@ -245,12 +302,16 @@ export default function CalendarView() {
         const isToday = isEqual(normalizedDay, today);
 
         // --- Period Styling ---
-        if (dayInfo.isPeriodStart) {
+        if (dayInfo.isPeriodStart && dayInfo.isPeriodEnd) { // Start and End on the same day
+             backgroundClass = 'bg-primary';
+             textClass = 'text-primary-foreground font-semibold';
+             shapeClass = 'rounded-full';
+             borderClass = 'border-2 border-primary';
+        } else if (dayInfo.isPeriodStart) {
             backgroundClass = 'bg-primary';
             textClass = 'text-primary-foreground font-semibold';
             shapeClass = 'rounded-l-full';
             borderClass = 'border-y-2 border-l-2 border-primary';
-             if (dayInfo.isPeriodEnd) shapeClass = 'rounded-full'; // If start and end are same day
         } else if (dayInfo.isPeriodEnd) {
             backgroundClass = 'bg-primary';
             textClass = 'text-primary-foreground font-semibold';
@@ -261,11 +322,11 @@ export default function CalendarView() {
             textClass = 'text-primary-foreground/90';
             shapeClass = 'rounded-none';
              borderClass = 'border-y-2 border-primary/80';
-        } else if (dayInfo.isPeriod) { // Fallback
-             backgroundClass = 'bg-primary';
-             textClass = 'text-primary-foreground font-semibold';
+        } else if (dayInfo.isPeriod) { // Fallback for logged period days outside a start/end range (should be less common now)
+             backgroundClass = 'bg-primary/50'; // Slightly different fallback
+             textClass = 'text-primary-foreground/80 font-medium';
              shapeClass = 'rounded-full';
-             borderClass = 'border-2 border-primary';
+             borderClass = 'border border-primary/70';
         }
 
         // --- Other States (Apply if not a period day) ---
@@ -331,32 +392,37 @@ export default function CalendarView() {
              }
 
              // Adjust shape based on period range connection if selected
-             if (dayInfo.isPeriodStart && !dayInfo.isPeriodEnd) shapeClass = 'rounded-l-full';
-             else if (dayInfo.isPeriodEnd && !dayInfo.isPeriodStart) shapeClass = 'rounded-r-full';
+             if (dayInfo.isPeriodStart && dayInfo.isPeriodEnd) shapeClass = 'rounded-full'; // Start and end same day
+             else if (dayInfo.isPeriodStart) shapeClass = 'rounded-l-full';
+             else if (dayInfo.isPeriodEnd) shapeClass = 'rounded-r-full';
              else if (dayInfo.isInPeriodRange) shapeClass = 'rounded-none';
-             else shapeClass = 'rounded-full';
+             else shapeClass = 'rounded-full'; // Default for selected non-period days
         } else {
             // Handle shape connection for non-selected period range days
-             const prevDayString = format(subDays(normalizedDay, 1), 'yyyy-MM-dd');
-             const nextDayString = format(addDays(normalizedDay, 1), 'yyyy-MM-dd');
+             const prevDayString = formatDateFns(subDays(normalizedDay, 1), 'yyyy-MM-dd');
+             const nextDayString = formatDateFns(addDays(normalizedDay, 1), 'yyyy-MM-dd');
              const prevDayInfo = monthDayInfo[prevDayString];
              const nextDayInfo = monthDayInfo[nextDayString];
 
-             const isInRangeLike = dayInfo.isPeriodStart || dayInfo.isPeriodEnd || dayInfo.isInPeriodRange;
-             const prevIsInRangeLike = prevDayInfo && (prevDayInfo.isPeriodStart || prevDayInfo.isInPeriodRange);
-             const nextIsInRangeLike = nextDayInfo && (nextDayInfo.isPeriodEnd || nextDayInfo.isInPeriodRange);
-             const isPrevPeriodEnd = prevDayInfo && prevDayInfo.isPeriodEnd;
-             const isNextPeriodStart = nextDayInfo && nextDayInfo.isPeriodStart;
+             const isCurrentInRangeLike = dayInfo.isPeriodStart || dayInfo.isPeriodEnd || dayInfo.isInPeriodRange;
+             const isPrevInRangeLike = prevDayInfo && (prevDayInfo.isPeriodStart || prevDayInfo.isInPeriodRange);
+             const isNextInRangeLike = nextDayInfo && (nextDayInfo.isPeriodEnd || nextDayInfo.isInPeriodRange);
 
-            if (isInRangeLike) {
-                if (prevIsInRangeLike && nextIsInRangeLike && !isPrevPeriodEnd && !isNextPeriodStart) shapeClass = 'rounded-none';
-                else if (prevIsInRangeLike && !isPrevPeriodEnd) shapeClass = 'rounded-r-full';
-                else if (nextIsInRangeLike && !isNextPeriodStart) shapeClass = 'rounded-l-full';
-
-                // Specific start/end day shapes
-                if (dayInfo.isPeriodStart && dayInfo.isPeriodEnd) shapeClass = 'rounded-full';
-                else if (dayInfo.isPeriodStart) shapeClass = 'rounded-l-full';
-                else if (dayInfo.isPeriodEnd) shapeClass = 'rounded-r-full';
+            if (isCurrentInRangeLike) {
+                 if (dayInfo.isPeriodStart && dayInfo.isPeriodEnd) { // Start and end same day
+                     shapeClass = 'rounded-full';
+                 } else if (dayInfo.isPeriodStart && isNextInRangeLike) { // Start day connected to the right
+                     shapeClass = 'rounded-l-full';
+                 } else if (dayInfo.isPeriodEnd && isPrevInRangeLike) { // End day connected to the left
+                     shapeClass = 'rounded-r-full';
+                 } else if (dayInfo.isInPeriodRange && isPrevInRangeLike && isNextInRangeLike) { // Middle day connected both sides
+                     shapeClass = 'rounded-none';
+                 } else if (dayInfo.isInPeriodRange && isPrevInRangeLike) { // Middle day, only connected left (e.g., day before end)
+                     shapeClass = 'rounded-r-full'; // Technically should be none, but visually might connect right
+                 } else if (dayInfo.isInPeriodRange && isNextInRangeLike) { // Middle day, only connected right (e.g., day after start)
+                     shapeClass = 'rounded-l-full'; // Technically should be none, but visually might connect left
+                 }
+                 // If it's a single period day marked outside a range (fallback case), keep rounded-full
             }
         }
     } else {
@@ -384,13 +450,13 @@ export default function CalendarView() {
         <div
           className={combinedClasses}
           onClick={(e) => handleDayClick(normalizedDay, {}, e)}
-          aria-label={!isFutureDate ? `Details for ${format(normalizedDay, 'PPP')}` : `Future date ${format(normalizedDay, 'PPP')}, disabled`}
+          aria-label={!isFutureDate ? `Details for ${formatDateFns(normalizedDay, 'PPP')}` : `Future date ${formatDateFns(normalizedDay, 'PPP')}, disabled`}
           role={!isFutureDate ? "button" : undefined} // Role button only for clickable dates
           tabIndex={isFutureDate || isOutside ? -1 : 0} // Make future/outside dates not focusable
           onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && !isFutureDate && !isOutside) handleDayClick(normalizedDay, {}, e as any); }}
           aria-disabled={isFutureDate || isOutside} // Indicate disabled state
         >
-           {format(normalizedDay, 'd')}
+           {formatDateFns(normalizedDay, 'd')}
            {iconOverlay}
            {activityIndicator}
         </div>
@@ -416,7 +482,7 @@ export default function CalendarView() {
       }
   }
 
-   const selectedDayInfo = selectedDate ? monthDayInfo[format(selectedDate, 'yyyy-MM-dd')] : null;
+   const selectedDayInfo = selectedDate ? monthDayInfo[formatDateFns(selectedDate, 'yyyy-MM-dd')] : null;
 
    // Check if any data exists for the selected day
    const hasAnySelectedData = selectedDayInfo && (
@@ -444,18 +510,20 @@ export default function CalendarView() {
                 month={currentMonth}
                 onMonthChange={(month) => setCurrentMonth(startOfDay(month))}
                 disabled={(date) => isAfter(date, today)} // Disable future dates in DayPicker internals
-                className="p-0"
+                className="p-0" // Remove internal padding of Calendar component
                 classNames={{
-                    root: 'bg-card text-card-foreground rounded-lg',
-                    caption: 'flex justify-center items-center h-14 border-b relative px-4',
-                    caption_label: 'text-lg font-semibold text-foreground',
-                    nav: 'flex items-center absolute inset-y-0',
-                    nav_button: cn( // Standard button styles
+                    root: 'bg-card text-card-foreground rounded-lg w-full', // Ensure full width
+                    months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
+                    month: "space-y-4 w-full", // Ensure month takes full width
+                    caption: "hidden", // Hide default caption, use custom one
+                    // caption_label: "text-lg font-semibold text-foreground flex-grow text-center", // Label styling if needed
+                    nav: "hidden", // Hide default nav buttons, use custom one in Caption
+                    nav_button: cn(
                         'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
-                        'h-9 w-9 p-0 text-muted-foreground hover:text-foreground hover:bg-muted' // Specific styles for nav buttons
+                        'h-9 w-9 p-0 text-muted-foreground hover:text-foreground hover:bg-muted'
                     ),
-                    nav_button_previous: 'left-2',
-                    nav_button_next: 'right-2',
+                    // nav_button_previous: 'absolute left-4', // Adjusted in CustomCaption
+                    // nav_button_next: 'absolute right-4', // Adjusted in CustomCaption
                     table: 'w-full border-collapse mt-1',
                     head_row: 'flex justify-around items-center h-10',
                     head_cell: 'w-10 text-muted-foreground font-medium text-sm',
@@ -470,7 +538,7 @@ export default function CalendarView() {
                     day_today: ' ', // Handled by DayContent
                     day_outside: ' ', // Handled by DayContent (renders dimmed number)
                     // Apply stricter disabled styling to ensure visual consistency
-                    day_disabled: 'text-muted-foreground/50 opacity-50 cursor-not-allowed',
+                    day_disabled: 'text-muted-foreground/30 opacity-50 cursor-not-allowed',
                     day_hidden: 'invisible',
                     // Range styles might interfere, reset them
                     day_range_start: ' ',
@@ -478,6 +546,7 @@ export default function CalendarView() {
                     day_range_middle: ' ',
                 }}
                 components={{
+                  Caption: CustomCaption, // Use the custom caption component
                   DayContent: ({ date, displayMonth }) => renderDayContent(date, displayMonth),
                 }}
                 showOutsideDays={true}
@@ -498,7 +567,7 @@ export default function CalendarView() {
                  // Do nothing, interaction is inside the popover
             } else {
                 // Close if clicking outside, but check if the click was on the calendar trigger itself (any part of the DayPicker)
-                 if (!(event.target instanceof Element && event.target.closest('.rdp-button, .rdp-day, .rdp-nav_button, .rdp-caption_label'))) { // Include day elements
+                 if (!(event.target instanceof Element && event.target.closest('.rdp-button, .rdp-day, [role="button"], [role="gridcell"]'))) { // More robust check for calendar elements
                      setPopoverOpen(false);
                  }
             }
@@ -506,7 +575,7 @@ export default function CalendarView() {
       >
          {selectedDayInfo ? (
           <div className="space-y-3 max-w-xs text-popover-foreground">
-            <h4 className="font-semibold text-center text-lg">{format(selectedDayInfo.date, 'PPP')}</h4>
+            <h4 className="font-semibold text-center text-lg">{formatDateFns(selectedDayInfo.date, 'PPP')}</h4>
             <hr className="border-border/50"/>
             <div className="space-y-2 text-sm">
                  {/* Period Indicators */}
@@ -519,7 +588,7 @@ export default function CalendarView() {
                         Period
                         {selectedDayInfo.periodIntensity && ` (${selectedDayInfo.periodIntensity.charAt(0).toUpperCase() + selectedDayInfo.periodIntensity.slice(1)})`}
                         {selectedDayInfo.isPeriodStart && !selectedDayInfo.isPeriodEnd && " (Start)"}
-                        {selectedDayInfo.isPeriodEnd && " (End)"}
+                        {selectedDayInfo.isPeriodEnd && !selectedDayInfo.isPeriodStart && " (End)"}
                          {selectedDayInfo.isPeriodStart && selectedDayInfo.isPeriodEnd && " (Start & End)"}
                     </div>
                 )}
@@ -603,13 +672,13 @@ export default function CalendarView() {
             {/* Check if there's any meaningful data logged beyond just date and 'none' flow */}
              {hasAnySelectedData ? (
                  <Button variant="default" size="sm" className="w-full mt-4 bg-accent hover:bg-accent/90 text-accent-foreground rounded-full shadow-md" asChild>
-                   <Link href={`/log?date=${format(selectedDayInfo.date, 'yyyy-MM-dd')}`} onClick={() => setPopoverOpen(false)}>
+                   <Link href={`/log?date=${formatDateFns(selectedDayInfo.date, 'yyyy-MM-dd')}`} onClick={() => setPopoverOpen(false)}>
                     Edit Log
                   </Link>
                 </Button>
              ) : (
                  <Button variant="default" size="sm" className="w-full mt-4 bg-accent hover:bg-accent/90 text-accent-foreground rounded-full shadow-md" asChild>
-                    <Link href={`/log?date=${format(selectedDayInfo.date, 'yyyy-MM-dd')}`} onClick={() => setPopoverOpen(false)}>
+                    <Link href={`/log?date=${formatDateFns(selectedDayInfo.date, 'yyyy-MM-dd')}`} onClick={() => setPopoverOpen(false)}>
                      Add Log
                    </Link>
                  </Button>

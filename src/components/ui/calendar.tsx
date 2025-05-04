@@ -2,7 +2,7 @@
 
 import * as React from "react"
 import { ChevronLeft, ChevronRight } from "lucide-react"
-import { DayPicker, DateRange } from "react-day-picker"
+import { DayPicker, DateRange } from "react-day-picker" // Removed CaptionProps import
 
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
@@ -14,6 +14,7 @@ function Calendar({
   classNames,
   showOutsideDays = true,
   disabled, // Accept disabled prop
+  components, // Accept components prop
   ...props
 }: CalendarProps) {
   return (
@@ -24,20 +25,20 @@ function Calendar({
       classNames={{
         months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
         month: "space-y-4",
-        caption: "flex justify-center items-center h-14 border-b relative px-4", // Caption has px-4
-        caption_label: "text-lg font-semibold flex-grow text-center", // Allow label to grow and center text
-        nav: "flex items-center absolute inset-y-0 w-full px-4 justify-between", // Match caption padding (px-4) and use justify-between for spacing
+        caption: "flex justify-center pt-1 relative items-center",
+        caption_label: "text-sm font-medium",
+        nav: "space-x-1 flex items-center", // Keep for default structure if needed
         nav_button: cn(
           buttonVariants({ variant: "outline" }),
-          "h-9 w-9 bg-transparent p-0 text-muted-foreground hover:text-foreground hover:bg-muted" // General button styles
+          "h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100" // Simplify as it's overridden by CustomCaption usage
         ),
-        nav_button_previous: '', // Rely on flex justify-between, remove specific positioning/order
-        nav_button_next: '', // Rely on flex justify-between, remove specific positioning/order
+        nav_button_previous: "", // Empty as CustomCaption handles it
+        nav_button_next: "", // Empty as CustomCaption handles it
         table: "w-full border-collapse space-y-1",
         head_row: "flex",
         head_cell:
-          "text-muted-foreground rounded-md w-10 font-normal text-sm", // Increased width to w-10, aligned text size
-        row: "flex w-full mt-0.5", // Removed justify-around, cells handle width now
+          "text-muted-foreground rounded-md w-10 font-normal text-[0.8rem]", // Adjusted width and font size slightly
+        row: "flex w-full mt-0.5", // Adjusted margin
         cell: cn(
           // Cell container - remove internal padding, apply on DayContent
           "h-10 w-10 text-center text-sm p-0 relative", // Base size and padding reset
@@ -67,12 +68,14 @@ function Calendar({
         ...classNames,
       }}
       components={{
+        // Default icons are fine if CustomCaption handles layout
         IconLeft: ({ ...props }) => (
-          <ChevronLeft className="h-5 w-5" {...props} /> // Ensure consistent icon size
+          <ChevronLeft className="h-4 w-4" {...props} />
         ),
         IconRight: ({ ...props }) => (
-          <ChevronRight className="h-5 w-5" {...props} /> // Ensure consistent icon size
+          <ChevronRight className="h-4 w-4" {...props} />
         ),
+         ...components // Merge provided components
       }}
       {...props}
     />
