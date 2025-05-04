@@ -94,7 +94,7 @@ export function CycleDataProvider({ children }: CycleDataProviderProps) {
   const addOrUpdateLog = useCallback((date: Date, data: Omit<LogData, 'date'>) => {
     saveLogEntry(date, data); // Save to localStorage (this will trigger the event listener)
     // Optimistic UI update is handled by the event listener triggering loadInitialData
-  }, [loadInitialData]); // Add loadInitialData as dependency? No, save triggers event.
+  }, []); // remove loadInitialData as dependency
 
   const getLogForDate = useCallback((date: Date): LogData | null => {
     const dateString = format(date, 'yyyy-MM-dd');
@@ -150,4 +150,3 @@ export function useCycleData() {
   }
   return context;
 }
-```

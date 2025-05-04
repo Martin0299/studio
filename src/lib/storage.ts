@@ -155,4 +155,3 @@ export function deleteAllLogEntries(): void {
         console.error("Error deleting all log entries from localStorage:", error);
     }
 }
-```
