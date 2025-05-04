@@ -6,15 +6,20 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { SendHorizontal, User, Bot, Loader2 } from 'lucide-react';
+import { SendHorizontal, User, Bot, Loader2, MicOff } from 'lucide-react'; // Added MicOff for limit
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
+import { format } from 'date-fns';
 
 interface Message {
   id: string;
   sender: 'user' | 'bot';
   text: string | React.ReactNode; // Allow ReactNode for loading state etc.
 }
+
+const MAX_DAILY_MESSAGES = 5;
+const MESSAGE_COUNT_KEY = 'chatMessageCount';
+const LAST_MESSAGE_DATE_KEY = 'chatLastMessageDate';
 
 export default function Chatbot() {
   const [messages, setMessages] = React.useState<Message[]>([
@@ -26,9 +31,38 @@ export default function Chatbot() {
   ]);
   const [input, setInput] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(false);
+  const [isLimitReached, setIsLimitReached] = React.useState(false);
+  const [messageCount, setMessageCount] = React.useState(0);
   const { toast } = useToast();
   const scrollAreaRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
+
+
+  // Function to check and update message limit
+  const checkAndUpdateLimit = React.useCallback(() => {
+    const today = format(new Date(), 'yyyy-MM-dd');
+    const lastDate = localStorage.getItem(LAST_MESSAGE_DATE_KEY);
+    let currentCount = 0;
+
+    if (lastDate === today) {
+      currentCount = parseInt(localStorage.getItem(MESSAGE_COUNT_KEY) || '0', 10);
+    } else {
+      // Reset count if it's a new day
+      localStorage.setItem(MESSAGE_COUNT_KEY, '0');
+      localStorage.setItem(LAST_MESSAGE_DATE_KEY, today);
+    }
+
+    setMessageCount(currentCount);
+    setIsLimitReached(currentCount >= MAX_DAILY_MESSAGES);
+
+    return { currentCount, today };
+  }, []);
+
+
+  // Check limit on mount
+  React.useEffect(() => {
+    checkAndUpdateLimit();
+  }, [checkAndUpdateLimit]);
 
 
   // Scroll to bottom when messages change
@@ -47,7 +81,19 @@ export default function Chatbot() {
 
   const handleSubmit = async (e?: React.FormEvent<HTMLFormElement>) => {
     e?.preventDefault();
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || isLoading || isLimitReached) return;
+
+    // Re-check limit before sending (in case of rapid submissions or stale state)
+    const { currentCount: countBeforeSend, today } = checkAndUpdateLimit();
+    if (countBeforeSend >= MAX_DAILY_MESSAGES) {
+         toast({
+            title: "Daily Limit Reached",
+            description: `You can send up to ${MAX_DAILY_MESSAGES} messages per day. Please try again tomorrow.`,
+            variant: "destructive",
+         });
+        return; // Stop submission
+    }
+
 
     const userMessage: Message = {
       id: `user-${Date.now()}`,
@@ -58,6 +104,14 @@ export default function Chatbot() {
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
+
+    // Increment count and update localStorage
+    const newCount = countBeforeSend + 1;
+    localStorage.setItem(MESSAGE_COUNT_KEY, newCount.toString());
+    setMessageCount(newCount);
+    if (newCount >= MAX_DAILY_MESSAGES) {
+        setIsLimitReached(true);
+    }
 
     // Add a temporary loading message from the bot
     const loadingMessageId = `bot-loading-${Date.now()}`;
@@ -90,8 +144,10 @@ export default function Chatbot() {
         } : msg));
     } finally {
       setIsLoading(false);
-       // Refocus input after submission/response
-      inputRef.current?.focus();
+       // Refocus input after submission/response (if limit not reached)
+       if (!isLimitReached) {
+           inputRef.current?.focus();
+       }
     }
   };
 
@@ -137,23 +193,25 @@ export default function Chatbot() {
           <Input
             ref={inputRef}
             type="text"
-            placeholder="Ask Luna a question..."
+            placeholder={isLimitReached ? "Daily message limit reached" : "Ask Luna a question..."}
             value={input}
             onChange={handleInputChange}
-            disabled={isLoading}
+            disabled={isLoading || isLimitReached}
             className="flex-1"
             autoComplete="off"
           />
-          <Button type="submit" size="icon" disabled={isLoading || !input.trim()}>
-             {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <SendHorizontal className="h-4 w-4" />}
-             <span className="sr-only">Send message</span>
+          <Button type="submit" size="icon" disabled={isLoading || !input.trim() || isLimitReached}>
+             {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : isLimitReached ? <MicOff className="h-4 w-4"/> : <SendHorizontal className="h-4 w-4" />}
+             <span className="sr-only">{isLimitReached ? "Limit Reached" : "Send message"}</span>
           </Button>
         </form>
          <p className="text-xs text-muted-foreground mt-2 text-center">
-             Luna is an AI assistant. Information provided is not medical advice. Consult a healthcare professional for medical concerns.
+             {isLimitReached
+                ? `Daily message limit (${MAX_DAILY_MESSAGES}) reached. Please check back tomorrow.`
+                : `You have ${MAX_DAILY_MESSAGES - messageCount} messages left today. Luna is an AI assistant. Information provided is not medical advice. Consult a healthcare professional for medical concerns.`
+             }
          </p>
       </div>
     </div>
   );
 }
-
