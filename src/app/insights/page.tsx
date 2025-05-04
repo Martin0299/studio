@@ -39,7 +39,7 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
         .sort((a, b) => parseISO(a).getTime() - parseISO(b).getTime());
 
     let currentPeriodStartDate: Date | null = null;
-    let currentPeriodDayCount = 0;
+    let lastPeriodDayDate: Date | null = null; // Track the most recent day logged *with* flow
 
     sortedDates.forEach((dateString, index) => {
         const entry = logData[dateString];
@@ -57,12 +57,17 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
 
         if (isPeriodStart) {
              // --- Handle end of previous period if it wasn't explicitly marked ---
-             if (currentPeriodStartDate && currentPeriodDayCount > 0 && currentPeriodDayCount < 20) {
-                 periodLengths.push(currentPeriodDayCount);
+             // A period starts, so the *previous* period must have ended.
+             // Calculate length if we have a start date and the last flow day for the *previous* period.
+             if (currentPeriodStartDate && lastPeriodDayDate && currentPeriodStartDate !== date) { // Check start date is not the current one
+                 const length = differenceInDays(lastPeriodDayDate, currentPeriodStartDate) + 1; // Inclusive
+                  if (length > 0 && length < 20) { // Basic validation
+                      periodLengths.push(length);
+                  }
              }
              // --- Start new period ---
              currentPeriodStartDate = date;
-             currentPeriodDayCount = 1;
+             lastPeriodDayDate = date; // The start day is the first (and currently last) day of flow
              periodStartDates.push(currentPeriodStartDate);
 
              // Calculate cycle length if we have a previous start date
@@ -75,30 +80,38 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
              }
         } else if (isPeriodDay && currentPeriodStartDate) {
             // Continuation of a period
-            currentPeriodDayCount++;
-            if (isExplicitEnd && currentPeriodDayCount > 0 && currentPeriodDayCount < 20) {
-                 // Explicit end logged on a period day
-                 periodLengths.push(currentPeriodDayCount);
+            lastPeriodDayDate = date; // Update the last day flow was recorded
+            if (isExplicitEnd) {
+                // Explicit end logged on a period day. Period ends *today*.
+                 const length = differenceInDays(date, currentPeriodStartDate) + 1; // Inclusive
+                 if (length > 0 && length < 20) {
+                     periodLengths.push(length);
+                 }
                  currentPeriodStartDate = null; // Reset for next period
-                 currentPeriodDayCount = 0;
+                 lastPeriodDayDate = null;
             }
         } else if (currentPeriodStartDate) {
              // Day is NOT a period day, or it is but period hasn't started according to logic
-             // Check if this is the day *after* a period ended (implicitly or explicitly)
-             if (isExplicitEnd) { // End explicitly marked on a non-period day (or period day handled above)
-                 // The period ended *yesterday*
-                 if (currentPeriodDayCount > 0 && currentPeriodDayCount < 20) {
-                    periodLengths.push(currentPeriodDayCount);
+             if (isExplicitEnd) {
+                 // Explicit end marked on a non-period day (or period day handled above)
+                 // This implies the period ended *yesterday* (or the last day flow was logged)
+                 if(lastPeriodDayDate) { // Check if we have a last flow day logged for this period
+                     const length = differenceInDays(lastPeriodDayDate, currentPeriodStartDate) + 1; // Inclusive
+                     if (length > 0 && length < 20) {
+                        periodLengths.push(length);
+                     }
                  }
                  currentPeriodStartDate = null; // Reset for next period
-                 currentPeriodDayCount = 0;
-             } else if (!isPeriodDay) {
+                 lastPeriodDayDate = null;
+             } else if (!isPeriodDay && lastPeriodDayDate) {
                  // Implicit end: A non-period day following a period day
-                 if (currentPeriodDayCount > 0 && currentPeriodDayCount < 20) {
-                     periodLengths.push(currentPeriodDayCount);
+                 // The period ended on the lastPeriodDayDate
+                 const length = differenceInDays(lastPeriodDayDate, currentPeriodStartDate) + 1; // Inclusive
+                 if (length > 0 && length < 20) {
+                     periodLengths.push(length);
                  }
                  currentPeriodStartDate = null; // Reset for next period
-                 currentPeriodDayCount = 0;
+                 lastPeriodDayDate = null;
              }
         }
 
@@ -117,8 +130,11 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
     });
 
      // Add the last period length if it was ongoing at the end of logs and wasn't closed
-    if (currentPeriodStartDate && currentPeriodDayCount > 0 && currentPeriodDayCount < 20) {
-        periodLengths.push(currentPeriodDayCount);
+    if (currentPeriodStartDate && lastPeriodDayDate) {
+         const length = differenceInDays(lastPeriodDayDate, currentPeriodStartDate) + 1; // Inclusive
+         if (length > 0 && length < 20) {
+             periodLengths.push(length);
+         }
     }
 
     // Averages
