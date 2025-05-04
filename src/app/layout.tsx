@@ -9,6 +9,8 @@ import { Toaster } from "@/components/ui/toaster";
 import TopNavBar from '@/components/navigation/top-nav-bar';
 import { CycleDataProvider } from '@/context/CycleDataContext'; // Import the provider
 import { cn } from '@/lib/utils'; // Import cn
+import PinLockOverlay from '@/components/security/PinLockOverlay'; // Import the overlay
+import { getPinStatus } from '@/lib/security'; // Import PIN status check
 
 const inter = Inter({
   subsets: ['latin'],
@@ -30,6 +32,28 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+
+  const [isLocked, setIsLocked] = React.useState<boolean>(true); // Initially assume locked if enabled
+  const [isCheckingPin, setIsCheckingPin] = React.useState<boolean>(true); // Track initial check
+
+   // Check PIN status on initial mount
+   React.useEffect(() => {
+       const lockEnabled = localStorage.getItem('appLock') === 'true';
+       const pinIsSet = getPinStatus(); // Check if PIN exists and is marked as set
+
+       if (lockEnabled && pinIsSet) {
+           setIsLocked(true); // Keep it locked if enabled and PIN is set
+       } else {
+           setIsLocked(false); // Unlock if lock is disabled or no PIN is set
+       }
+       setIsCheckingPin(false); // Finished initial check
+   }, []);
+
+   // Handle unlocking the app
+   const handleUnlock = () => {
+       setIsLocked(false);
+   };
+
 
   // Effect to set initial theme and accent from localStorage or system preference
   React.useEffect(() => {
@@ -70,11 +94,20 @@ export default function RootLayout({
       >
          {/* Wrap the main content area and navbar with the provider */}
         <CycleDataProvider>
-            <TopNavBar />
-            <main className="flex-grow pt-16"> {/* Add padding-top to account for fixed nav bar */}
-            {children}
-            </main>
-            <Toaster />
+            {/* Conditional Rendering based on lock state */}
+            {isCheckingPin ? (
+                 <div className="flex items-center justify-center min-h-screen">Loading security state...</div> // Or a proper loader
+            ) : isLocked ? (
+                 <PinLockOverlay onUnlock={handleUnlock} />
+            ) : (
+                 <>
+                    <TopNavBar />
+                    <main className="flex-grow pt-16"> {/* Add padding-top to account for fixed nav bar */}
+                        {children}
+                    </main>
+                    <Toaster />
+                </>
+            )}
         </CycleDataProvider>
       </body>
     </html>

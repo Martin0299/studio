@@ -25,6 +25,8 @@ import { Palette, Lock, Bell, FileDown, Trash2, CircleHelp } from 'lucide-react'
 import { useCycleData } from '@/context/CycleDataContext'; // Import context
 import { cn } from '@/lib/utils'; // Import cn
 import { parseISO, format, subDays, addDays, differenceInDays, isAfter, isEqual, isValid } from 'date-fns'; // Import date-fns functions
+import PinSetupDialog from '@/components/settings/PinSetupDialog'; // Import the new dialog
+import { setPinStatus, getPinStatus, clearPinStatus } from '@/lib/security'; // Import PIN utility functions
 
 // Define theme type (Removed 'system')
 type Theme = 'light' | 'dark';
@@ -48,27 +50,27 @@ export default function SettingsPage() {
     const [fertileReminder, setFertileReminder] = React.useState<boolean>(true);
 
     // -- Security State --
-    const [appLock, setAppLock] = React.useState<boolean>(false); // Now reflects actual state
+    const [appLock, setAppLock] = React.useState<boolean>(false);
+    const [pinIsSet, setPinIsSet] = React.useState<boolean>(false); // State to track if PIN is set
+    const [showPinDialog, setShowPinDialog] = React.useState<boolean>(false); // State for PIN dialog visibility
 
-    // --- Effects for Appearance and Reminders ---
+    // --- Effects for Appearance, Reminders, and Security ---
 
-    // Load Appearance, Reminder & Security settings from localStorage on mount
+    // Load settings from localStorage on mount
     React.useEffect(() => {
         const storedTheme = localStorage.getItem('theme') as Theme | null;
         const storedAccent = localStorage.getItem('accentColor') as AccentColor | null;
         const storedPeriodReminder = localStorage.getItem('periodReminder');
         const storedFertileReminder = localStorage.getItem('fertileReminder');
-        const storedAppLock = localStorage.getItem('appLock'); // Load app lock state
+        const storedAppLock = localStorage.getItem('appLock');
 
         // Set theme
         if (storedTheme && ['light', 'dark'].includes(storedTheme)) {
             setTheme(storedTheme);
         } else {
-            // Default to light theme if nothing is stored or value is invalid
             setTheme('light');
             localStorage.setItem('theme', 'light');
         }
-
 
         // Set accent
         if (storedAccent && ['coral', 'gold'].includes(storedAccent)) {
@@ -78,12 +80,21 @@ export default function SettingsPage() {
             localStorage.setItem('accentColor', 'coral');
         }
 
-        // Set reminders (default to true if not found or invalid)
+        // Set reminders
         setPeriodReminder(storedPeriodReminder ? JSON.parse(storedPeriodReminder) : true);
         setFertileReminder(storedFertileReminder ? JSON.parse(storedFertileReminder) : true);
 
-        // Set app lock (default to false)
-        setAppLock(storedAppLock ? JSON.parse(storedAppLock) : false);
+        // Set app lock and check PIN status
+        const lockEnabled = storedAppLock ? JSON.parse(storedAppLock) : false;
+        setAppLock(lockEnabled);
+        const currentPinStatus = getPinStatus();
+        setPinIsSet(currentPinStatus);
+
+        // If lock is disabled but PIN was set, clear PIN status
+        if (!lockEnabled && currentPinStatus) {
+            clearPinStatus();
+            setPinIsSet(false);
+        }
 
     }, []);
 
@@ -238,23 +249,52 @@ export default function SettingsPage() {
              variant: "default"
         });
         if (checked) {
-             console.log("App Lock enabled - PIN setup required (not implemented)");
-             // No automatic toast here, user needs to click the button
+             // If enabling lock and PIN isn't set, prompt user to set it
+             if (!pinIsSet) {
+                 setShowPinDialog(true); // Open the dialog immediately
+                 toast({
+                    title: "PIN Required",
+                    description: "Please set up a PIN to enable App Lock.",
+                    variant: "default"
+                 });
+             }
         } else {
-            console.log("App Lock disabled - clear stored PIN (not implemented)");
-            // Optionally prompt to clear PIN if it was set
+            // If disabling lock, clear the stored PIN status
+            clearPinStatus();
+            setPinIsSet(false);
+            console.log("App Lock disabled - PIN status cleared.");
         }
     };
 
-    const handleSetPin = () => {
+    // Renamed handler to avoid conflict
+    const handleOpenPinDialog = () => {
         console.log("Set/Change PIN initiated");
-        // Here you would typically open a modal or navigate to a PIN setup screen.
-        // For now, just show a toast indicating it's not implemented.
-        toast({
-            title: "PIN Setup Required",
-            description: "Setting up or changing the PIN is not yet implemented.",
-            variant: "default" // Use default variant, destructive is too strong for unimplemented feature
-        });
+        setShowPinDialog(true); // Open the PIN setup dialog
+    };
+
+    // Handler for when PIN is successfully set in the dialog
+    const handlePinSet = (success: boolean) => {
+        setShowPinDialog(false); // Close the dialog
+        if (success) {
+            setPinStatus(true); // Update storage flag
+            setPinIsSet(true); // Update local state
+            toast({
+                title: "PIN Set Successfully",
+                description: "App Lock is now secured with your PIN.",
+            });
+        } else {
+            // Optional: Handle cancellation or failure if needed
+            console.log("PIN setup cancelled or failed.");
+             // If the user cancelled setting a PIN while enabling lock, disable the lock again
+             if (appLock && !getPinStatus()) {
+                 handleAppLockChange(false); // Toggle lock off
+                 toast({
+                    title: "App Lock Disabled",
+                    description: "PIN setup was cancelled. App Lock has been disabled.",
+                    variant: "destructive"
+                 });
+             }
+        }
     };
 
 
@@ -380,11 +420,11 @@ export default function SettingsPage() {
             <Card>
                 <CardHeader>
                     <CardTitle className="text-lg flex items-center"><Lock className="mr-2 h-5 w-5"/>Security</CardTitle>
-                    <CardDescription>Protect access to your app. (Requires further setup for full functionality)</CardDescription>
+                    <CardDescription>Protect access to your app with a PIN.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                      <div className="flex items-center justify-between">
-                        <Label htmlFor="app-lock" className="flex-1 pr-4">Enable App Lock (PIN/Biometrics)</Label>
+                        <Label htmlFor="app-lock" className="flex-1 pr-4">Enable App Lock</Label>
                         <Switch
                             id="app-lock"
                             checked={appLock}
@@ -392,15 +432,20 @@ export default function SettingsPage() {
                             aria-label="Toggle app lock"
                         />
                     </div>
-                     {/* Button is only enabled if appLock is true */}
+                     {/* Button to Set/Change PIN */}
                      <Button
                         variant="outline"
                         className="w-full"
                         disabled={!appLock} // Enable button only when app lock is toggled on
-                        onClick={handleSetPin}
+                        onClick={handleOpenPinDialog} // Use the new handler
                     >
-                        Set/Change PIN (Setup Required)
+                         {pinIsSet ? 'Change PIN' : 'Set PIN'}
                     </Button>
+                     <PinSetupDialog
+                        isOpen={showPinDialog}
+                        onClose={handlePinSet} // Pass handler to get result from dialog
+                        isPinSet={pinIsSet} // Pass current PIN status
+                     />
                 </CardContent>
             </Card>
 
