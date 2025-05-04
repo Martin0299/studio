@@ -54,20 +54,21 @@ export function saveLogEntry(date: Date, data: Omit<LogData, 'date'>): void {
         sexualActivityCount: Math.max(0, data.sexualActivityCount ?? 0),
     };
 
-    // Don't save empty entries (only date) unless it's explicitly clearing previous data
+    // Check if the entry has any meaningful data OR if isPeriodEnd is true
     const hasMeaningfulData = Object.entries(entryToSave).some(([key, value]) => {
         // Ignore the 'date' field itself for this check
-        return key !== 'date' && value !== undefined && value !== '' && (!Array.isArray(value) || value.length > 0) && value !== false && value !== 0;
+        return key !== 'date' && value !== undefined && value !== '' && value !== 'none' && (!Array.isArray(value) || value.length > 0) && value !== false && value !== 0;
     });
+    const isExplicitEndMarker = entryToSave.isPeriodEnd === true;
 
     const existingEntry = localStorage.getItem(key);
 
-    if (hasMeaningfulData) {
+    if (hasMeaningfulData || isExplicitEndMarker) {
         localStorage.setItem(key, JSON.stringify(entryToSave));
         // Optional: Dispatch a custom event to notify other components of the update
         window.dispatchEvent(new CustomEvent('cycleLogUpdated', { detail: { date: format(date, 'yyyy-MM-dd') } }));
     } else if (existingEntry) {
-        // If no meaningful data is being saved, but an entry exists, delete it
+        // If no meaningful data AND not marking period end, but an entry exists, delete it
         localStorage.removeItem(key);
         window.dispatchEvent(new CustomEvent('cycleLogUpdated', { detail: { date: format(date, 'yyyy-MM-dd') } }));
     } else {

@@ -168,17 +168,17 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
   }, [watchSexualActivityCount, form]);
 
 
-    // If 'isPeriodEnd' is toggled on, but flow is 'none', set flow to 'light' (or last known?)
-    React.useEffect(() => {
-        if (watchIsPeriodEnd && watchPeriodFlow === 'none') {
-            form.setValue('periodFlow', 'light', { shouldValidate: true }); // Default to light if ending period with no flow selected
-            toast({
-                title: "Flow Updated",
-                description: "Period flow set to 'Light' as you marked this as the end day.",
-                variant: "default"
-            });
-        }
-    }, [watchIsPeriodEnd, watchPeriodFlow, form, toast]);
+    // REMOVED: Effect that linked isPeriodEnd and periodFlow
+    // React.useEffect(() => {
+    //     if (watchIsPeriodEnd && watchPeriodFlow === 'none') {
+    //         form.setValue('periodFlow', 'light', { shouldValidate: true }); // Default to light if ending period with no flow selected
+    //         toast({
+    //             title: "Flow Updated",
+    //             description: "Period flow set to 'Light' as you marked this as the end day.",
+    //             variant: "default"
+    //         });
+    //     }
+    // }, [watchIsPeriodEnd, watchPeriodFlow, form, toast]);
 
 
    if (isLoading) {
