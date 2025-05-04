@@ -4,7 +4,7 @@ import * as React from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import { format } from 'date-fns';
+import { format, parseISO } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -20,9 +20,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import { Switch } from '@/components/ui/switch'; // Added import for Switch
+import { Switch } from '@/components/ui/switch';
 import { Droplet, Zap, CloudRain, Wind, Smile, StickyNote, ShieldCheck, Ban } from 'lucide-react'; // Example icons
-
+import { useCycleData, LogData } from '@/context/CycleDataContext'; // Import context and LogData type
+import { useRouter } from 'next/navigation'; // Import useRouter
 
 // Define symptom and mood options with icons
 const symptomOptions = [
@@ -49,67 +50,106 @@ const flowOptions = [
 
 // Zod schema for form validation
 const logEntrySchema = z.object({
-  date: z.date(),
+  date: z.date(), // Keep date object for internal form state if needed, but we save string
   periodFlow: z.enum(['none', 'light', 'medium', 'heavy']).default('none'),
   symptoms: z.array(z.string()).default([]),
-  mood: z.string().optional(),
-  // Add fields for discharge, sexual activity, notes, custom fields
+  mood: z.string().optional().default(undefined), // Ensure optional fields default to undefined for consistency
   sexualActivity: z.boolean().default(false),
-  protectionUsed: z.boolean().default(false),
-  notes: z.string().optional(),
+  protectionUsed: z.boolean().optional().default(undefined), // Make optional, handled conditionally
+  notes: z.string().optional().default(''),
+}).refine(data => data.sexualActivity ? data.protectionUsed !== undefined : true, {
+    message: "Please specify if protection was used during sexual activity.", // Example validation
+    path: ["protectionUsed"], // Path of the error
 });
+
 
 type LogEntryFormValues = z.infer<typeof logEntrySchema>;
 
 interface LogEntryFormProps {
-  selectedDate: Date;
+  selectedDate: Date; // Receive Date object
 }
 
 export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
   const { toast } = useToast();
+  const { addOrUpdateLog, getLogForDate, isLoading } = useCycleData(); // Use context
+  const router = useRouter(); // Get router instance
+
+  // Fetch existing data for the selected date when the component mounts or date changes
+  const existingLog = React.useMemo(() => getLogForDate(selectedDate), [selectedDate, getLogForDate]);
+
   const form = useForm<LogEntryFormValues>({
     resolver: zodResolver(logEntrySchema),
     defaultValues: {
       date: selectedDate,
-      periodFlow: 'none',
-      symptoms: [],
-      mood: undefined,
-      sexualActivity: false,
-      protectionUsed: false,
-      notes: '',
-      // Load existing data for the selectedDate here from local storage
+      periodFlow: existingLog?.periodFlow ?? 'none',
+      symptoms: existingLog?.symptoms ?? [],
+      mood: existingLog?.mood ?? undefined,
+      sexualActivity: existingLog?.sexualActivity ?? false,
+      // Conditionally set protectionUsed default ONLY if sexualActivity was true
+      protectionUsed: existingLog?.sexualActivity ? (existingLog?.protectionUsed ?? false) : undefined,
+      notes: existingLog?.notes ?? '',
     },
     mode: 'onChange', // Validate on change
   });
 
  React.useEffect(() => {
-    // Reset form with new date if selectedDate prop changes
+    // Reset form with new date and potentially fetched data if selectedDate prop changes
+    const logForDate = getLogForDate(selectedDate);
     form.reset({
       date: selectedDate,
-      // Fetch and set other default values based on the new date from storage
-      periodFlow: 'none', // Example reset
-      symptoms: [],
-      mood: undefined,
-      sexualActivity: false,
-      protectionUsed: false,
-      notes: '',
+      periodFlow: logForDate?.periodFlow ?? 'none',
+      symptoms: logForDate?.symptoms ?? [],
+      mood: logForDate?.mood ?? undefined,
+      sexualActivity: logForDate?.sexualActivity ?? false,
+      protectionUsed: logForDate?.sexualActivity ? (logForDate?.protectionUsed ?? false) : undefined,
+      notes: logForDate?.notes ?? '',
     });
-  }, [selectedDate, form]);
+  }, [selectedDate, getLogForDate, form]); // Re-run when selectedDate changes or getLogForDate (from context) updates
 
 
   function onSubmit(data: LogEntryFormValues) {
-    // TODO: Implement saving data to local storage
-    console.log('Saving data:', data);
+    // Extract data excluding the 'date' object (we use selectedDate)
+    const { date, ...logDataToSave } = data;
+
+     // Ensure protectionUsed is only saved if sexualActivity is true
+    const finalLogData: Omit<LogData, 'date'> = {
+        ...logDataToSave,
+        protectionUsed: logDataToSave.sexualActivity ? logDataToSave.protectionUsed ?? false : undefined,
+    };
+
+
+    addOrUpdateLog(selectedDate, finalLogData); // Use context function to save
     toast({
-      title: 'Data Saved',
-      description: `Your log for ${format(data.date, 'PPP')} has been saved locally.`,
+      title: 'Log Saved',
+      description: `Your entry for ${format(selectedDate, 'PPP')} has been updated.`,
     });
-    // Potentially redirect or update UI state after saving
+     // Redirect back to the calendar page after saving
+    router.push('/calendar');
   }
+
+  // Watch sexualActivity field to conditionally render protectionUsed
+  const watchSexualActivity = form.watch('sexualActivity');
+
+  React.useEffect(() => {
+      // If sexual activity is toggled off, reset protectionUsed field
+      if (!watchSexualActivity) {
+          form.setValue('protectionUsed', undefined, { shouldValidate: true });
+      } else if (watchSexualActivity && form.getValues('protectionUsed') === undefined){
+           // If toggled on and it was undefined, set to default false
+           form.setValue('protectionUsed', false, { shouldValidate: true });
+      }
+  }, [watchSexualActivity, form]);
+
+
+   if (isLoading) {
+     // Optional: Show a loading state while context is loading initial data
+     return <div className="text-center p-6">Loading log data...</div>;
+   }
+
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6 pb-6">
         <h2 className="text-xl font-semibold text-center mb-4">
           Log for {format(selectedDate, 'EEEE, MMMM d, yyyy')}
         </h2>
@@ -130,22 +170,22 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
                      <ToggleGroup
                         type="single"
                         variant="outline"
-                        value={field.value}
+                        value={field.value === 'none' ? '' : field.value} // Handle 'none' case for ToggleGroup
                         onValueChange={(value) => {
-                            // Ensure value is one of the allowed enum values or 'none'
-                            const validValue = ['light', 'medium', 'heavy'].includes(value) ? value as 'light' | 'medium' | 'heavy' : 'none';
-                            field.onChange(validValue);
+                            // If the same value is clicked again, it returns '', treat as 'none'
+                            const newValue = value || 'none';
+                            field.onChange(newValue as 'none' | 'light' | 'medium' | 'heavy');
                         }}
-                        className="justify-start flex-wrap"
+                        className="justify-start flex-wrap gap-2" // Added gap
                         >
-                         <ToggleGroupItem value="none" aria-label="No flow" className="flex flex-col h-auto p-2">
+                         <ToggleGroupItem value="" aria-label="No flow" className="flex flex-col h-auto p-2 border rounded-lg data-[state=on]:bg-secondary data-[state=on]:border-primary data-[state=on]:text-primary">
                             <Ban className="h-5 w-5 mb-1"/> None
                         </ToggleGroupItem>
                         {flowOptions.map((option) => (
-                            <ToggleGroupItem key={option.id} value={option.id} aria-label={option.label} className="flex flex-col h-auto p-2">
+                            <ToggleGroupItem key={option.id} value={option.id} aria-label={option.label} className="flex flex-col h-auto p-2 border rounded-lg data-[state=on]:bg-primary/10 data-[state=on]:border-primary data-[state=on]:text-primary">
                                <div className="flex mb-1">
                                     {Array.from({ length: option.iconCount }).map((_, i) => (
-                                         <Droplet key={i} className="h-4 w-4 fill-current text-primary" />
+                                         <Droplet key={i} className="h-4 w-4 fill-current" /> // Removed text-primary, relies on parent state
                                     ))}
                                 </div>
                                 {option.label}
@@ -171,7 +211,7 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
               name="symptoms"
               render={() => (
                 <FormItem>
-                   <div className="grid grid-cols-3 gap-4">
+                   <div className="grid grid-cols-3 gap-3"> {/* Slightly reduced gap */}
                     {symptomOptions.map((item) => {
                       const Icon = item.icon;
                        return (
@@ -180,14 +220,15 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
                           control={form.control}
                           name="symptoms"
                           render={({ field }) => {
+                            const isChecked = field.value?.includes(item.id);
                             return (
                               <FormItem
                                 key={item.id}
-                                className="flex flex-col items-center space-y-1 border rounded-lg p-3 hover:bg-secondary/50 transition-colors cursor-pointer data-[state=checked]:bg-secondary data-[state=checked]:border-secondary-foreground"
-                                data-state={field.value?.includes(item.id) ? "checked" : "unchecked"}
+                                className="flex flex-col items-center space-y-1 border rounded-lg p-3 hover:bg-muted/50 transition-colors cursor-pointer data-[state=checked]:bg-accent/10 data-[state=checked]:border-accent data-[state=checked]:text-accent"
+                                data-state={isChecked ? "checked" : "unchecked"}
                                 onClick={() => {
                                    const currentSymptoms = field.value || [];
-                                   if (currentSymptoms.includes(item.id)) {
+                                   if (isChecked) {
                                         field.onChange(currentSymptoms.filter((value) => value !== item.id));
                                    } else {
                                         field.onChange([...currentSymptoms, item.id]);
@@ -197,17 +238,14 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
                                 <FormControl>
                                    {/* Hidden checkbox for form state */}
                                     <Checkbox
-                                        checked={field.value?.includes(item.id)}
-                                        onCheckedChange={(checked) => {
-                                            const currentSymptoms = field.value || [];
-                                            return checked
-                                            ? field.onChange([...currentSymptoms, item.id])
-                                            : field.onChange(currentSymptoms.filter((value) => value !== item.id));
-                                        }}
+                                        checked={isChecked}
+                                        // onCheckedChange is handled by the FormItem onClick
                                         className="sr-only" // Hide the actual checkbox
+                                        tabIndex={-1} // Prevent tabbing to hidden checkbox
+                                        aria-hidden="true"
                                     />
                                 </FormControl>
-                                <Icon className={`h-6 w-6 mb-1 ${field.value?.includes(item.id) ? 'text-accent' : 'text-muted-foreground'}`} />
+                                <Icon className={`h-6 w-6 mb-1 ${isChecked ? 'text-accent' : 'text-muted-foreground'}`} />
                                 <FormLabel className="font-normal text-sm text-center cursor-pointer">
                                   {item.label}
                                 </FormLabel>
@@ -240,20 +278,24 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
                         <ToggleGroup
                             type="single"
                             variant="outline"
-                            value={field.value}
-                            onValueChange={field.onChange}
-                            className="grid grid-cols-3 gap-4"
+                            value={field.value || ''} // Handle undefined value for ToggleGroup
+                            onValueChange={(value) => {
+                                // If the same value is clicked again, it returns '', treat as undefined
+                                field.onChange(value || undefined);
+                            }}
+                            className="grid grid-cols-3 gap-3" // Slightly reduced gap
                         >
                             {moodOptions.map((item) => {
                                 const Icon = item.icon;
+                                const isSelected = field.value === item.id;
                                 return (
                                      <ToggleGroupItem
                                         key={item.id}
                                         value={item.id}
                                         aria-label={item.label}
-                                        className="flex flex-col items-center space-y-1 h-auto p-3 data-[state=on]:bg-secondary data-[state=on]:border-secondary-foreground"
+                                        className="flex flex-col items-center space-y-1 h-auto p-3 border rounded-lg data-[state=on]:bg-accent/10 data-[state=on]:border-accent data-[state=on]:text-accent"
                                     >
-                                        <Icon className={`h-6 w-6 mb-1 ${field.value === item.id ? 'text-accent' : 'text-muted-foreground'}`} />
+                                        <Icon className={`h-6 w-6 mb-1 ${isSelected ? 'text-accent' : 'text-muted-foreground'}`} />
                                         <span className="font-normal text-sm text-center">{item.label}</span>
                                     </ToggleGroupItem>
                                 );
@@ -280,7 +322,7 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
                   <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                     <div className="space-y-0.5">
                       <FormLabel className="text-base">
-                        Intercourse
+                        Intercourse / Activity Logged
                       </FormLabel>
                     </div>
                     <FormControl>
@@ -292,7 +334,8 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
                   </FormItem>
                 )}
               />
-              {form.watch('sexualActivity') && (
+              {/* Conditionally render protectionUsed based on watched value */}
+              {watchSexualActivity && (
                  <FormField
                     control={form.control}
                     name="protectionUsed"
@@ -302,10 +345,11 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
                             <FormLabel className="text-base flex items-center">
                                 <ShieldCheck className="mr-2 h-5 w-5 text-green-600"/> Protection Used
                             </FormLabel>
+                            <FormMessage className="text-xs" /> {/* Show validation message here */}
                         </div>
                         <FormControl>
                         <Switch
-                            checked={field.value}
+                            checked={field.value ?? false} // Handle potential undefined state
                             onCheckedChange={field.onChange}
                             aria-label="Protection Used"
                         />
@@ -329,11 +373,13 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
               name="notes"
               render={({ field }) => (
                 <FormItem>
+                   <FormLabel className="sr-only">Notes</FormLabel>{/* Screen reader label */}
                   <FormControl>
                     <Textarea
-                      placeholder="Add any personal notes for the day..."
-                      className="resize-none"
-                      {...field}
+                      placeholder="Add any personal notes for the day (optional)..."
+                      className="resize-none min-h-[100px]" // Ensure enough height
+                      value={field.value ?? ''} // Handle potential null/undefined
+                      onChange={field.onChange}
                     />
                   </FormControl>
                   <FormMessage />

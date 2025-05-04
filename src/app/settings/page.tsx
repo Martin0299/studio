@@ -21,47 +21,53 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Palette, Lock, Bell, FileDown, Trash2, CircleHelp } from 'lucide-react'; // Icons
+import { useCycleData } from '@/context/CycleDataContext'; // Import context
 
 export default function SettingsPage() {
     const { toast } = useToast();
-    // State for settings - load defaults from local storage in useEffect
+    const { deleteAllData } = useCycleData(); // Get delete function from context
+    const [deleteConfirmInput, setDeleteConfirmInput] = React.useState(''); // State for delete confirmation input
+
+    // State for settings - TODO: load/save from a dedicated settings storage (e.g., localStorage)
     const [avgCycleLength, setAvgCycleLength] = React.useState<number>(28);
     const [avgPeriodLength, setAvgPeriodLength] = React.useState<number>(5);
     const [periodReminder, setPeriodReminder] = React.useState<boolean>(true);
     const [fertileReminder, setFertileReminder] = React.useState<boolean>(true);
     const [appLock, setAppLock] = React.useState<boolean>(false);
-    const [theme, setTheme] = React.useState<string>('system'); // 'light', 'dark', 'system'
-    const [accentColor, setAccentColor] = React.useState<string>('coral'); // 'coral', 'gold'
+    const [theme, setTheme] = React.useState<string>('system'); // 'light', 'dark', 'system' - TODO: Implement theme switching
+    const [accentColor, setAccentColor] = React.useState<string>('coral'); // 'coral', 'gold' - TODO: Implement accent color switching
 
 
-    // TODO: Load settings from local storage on component mount
+    // TODO: Load settings from a settings storage (separate from cycle logs) on component mount
     // React.useEffect(() => { ... load settings ... }, []);
 
-    // TODO: Save settings to local storage on change
+    // TODO: Save settings to a settings storage on change
     const handleSaveSettings = () => {
         console.log("Saving settings:", { avgCycleLength, avgPeriodLength, periodReminder, fertileReminder, appLock, theme, accentColor });
-        // Save logic here
+        // Save logic here (e.g., localStorage.setItem('appSettings', JSON.stringify({...})) )
         toast({ title: "Settings Saved", description: "Your preferences have been updated." });
     };
 
     const handleBackup = () => {
-        // TODO: Implement backup logic (create encrypted file, use share sheet)
+        // TODO: Implement backup logic (create encrypted JSON/CSV of localStorage data)
         console.log("Backup initiated");
-        toast({ title: "Backup Started", description: "Preparing your data for backup..." });
+        toast({ title: "Backup Not Implemented", description: "Data backup feature is coming soon.", variant: "destructive" });
     };
 
     const handleExport = () => {
         // TODO: Implement export logic (CSV/PDF via share sheet)
         console.log("Export initiated");
-        toast({ title: "Export Started", description: "Preparing your data for export..." });
+        toast({ title: "Export Not Implemented", description: "Data export feature is coming soon.", variant: "destructive" });
     };
 
-    const handleDeleteAllData = () => {
-        // TODO: Implement delete logic after confirmation
-        console.log("Deleting all data");
-        toast({ variant: "destructive", title: "Data Deleted", description: "All your data has been permanently removed." });
-        // Potentially reset app state or navigate away
+    const handleDeleteAllDataConfirmed = () => {
+        deleteAllData(); // Call context function to delete data from storage
+        toast({ variant: "destructive", title: "Data Deleted", description: "All your cycle data has been permanently removed." });
+        setDeleteConfirmInput(''); // Reset input
+        // Potentially reset other app state or navigate away if needed
     };
+
+    const isDeleteDisabled = deleteConfirmInput !== 'DELETE';
 
 
     return (
@@ -71,32 +77,29 @@ export default function SettingsPage() {
             {/* Cycle Settings */}
             <Card>
                 <CardHeader>
-                    <CardTitle className="text-lg">Cycle Settings</CardTitle>
-                    <CardDescription>Adjust your average cycle details for more accurate predictions.</CardDescription>
+                    <CardTitle className="text-lg">Cycle Settings (Informational)</CardTitle>
+                    <CardDescription>These averages are now calculated automatically in Insights. Manual override coming soon.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="grid grid-cols-2 gap-4 items-center">
                         <Label htmlFor="cycle-length">Average Cycle Length (days)</Label>
+                        {/* Display calculated average or placeholder */}
                         <Input
                             id="cycle-length"
                             type="number"
-                            value={avgCycleLength}
-                            onChange={(e) => setAvgCycleLength(parseInt(e.target.value) || 0)}
-                            min="10" // Example validation
-                            max="100"
-                            className="w-full"
+                            value={avgCycleLength} // TODO: Replace with calculated value from context/insights
+                            readOnly // Make read-only for now
+                            className="w-full bg-muted cursor-not-allowed"
                         />
                     </div>
                      <div className="grid grid-cols-2 gap-4 items-center">
                         <Label htmlFor="period-length">Average Period Length (days)</Label>
-                        <Input
+                         <Input
                             id="period-length"
                             type="number"
-                            value={avgPeriodLength}
-                            onChange={(e) => setAvgPeriodLength(parseInt(e.target.value) || 0)}
-                             min="1"
-                             max="20"
-                            className="w-full"
+                            value={avgPeriodLength} // TODO: Replace with calculated value
+                            readOnly
+                            className="w-full bg-muted cursor-not-allowed"
                         />
                     </div>
                     {/* TODO: Add option to exclude cycles */}
@@ -107,23 +110,25 @@ export default function SettingsPage() {
              <Card>
                 <CardHeader>
                     <CardTitle className="text-lg flex items-center"><Bell className="mr-2 h-5 w-5"/>Reminders</CardTitle>
-                    <CardDescription>Manage your notifications.</CardDescription>
+                    <CardDescription>Manage your notifications (feature coming soon).</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between opacity-50 cursor-not-allowed">
                         <Label htmlFor="period-reminder" className="flex-1">Period Start Prediction</Label>
                         <Switch
                             id="period-reminder"
                             checked={periodReminder}
                             onCheckedChange={setPeriodReminder}
+                            disabled
                         />
                     </div>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between opacity-50 cursor-not-allowed">
                         <Label htmlFor="fertile-reminder" className="flex-1">Fertile Window Start</Label>
                          <Switch
                             id="fertile-reminder"
                             checked={fertileReminder}
                             onCheckedChange={setFertileReminder}
+                            disabled
                         />
                     </div>
                     {/* TODO: Add more reminder options (Ovulation, Medication, etc.) */}
@@ -135,22 +140,22 @@ export default function SettingsPage() {
             <Card>
                 <CardHeader>
                     <CardTitle className="text-lg flex items-center"><Palette className="mr-2 h-5 w-5"/>Appearance</CardTitle>
-                     <CardDescription>Customize the look and feel of the app.</CardDescription>
+                     <CardDescription>Customize the look and feel (feature coming soon).</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6">
+                <CardContent className="space-y-6 opacity-50 cursor-not-allowed">
                      <div>
                          <Label className="mb-2 block">Theme</Label>
-                         <RadioGroup defaultValue={theme} onValueChange={setTheme} className="flex space-x-4">
+                         <RadioGroup defaultValue={theme} onValueChange={setTheme} className="flex space-x-4" disabled>
                             <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="light" id="theme-light" />
+                                <RadioGroupItem value="light" id="theme-light" disabled/>
                                 <Label htmlFor="theme-light">Light</Label>
                             </div>
                             <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="dark" id="theme-dark" />
+                                <RadioGroupItem value="dark" id="theme-dark" disabled/>
                                 <Label htmlFor="theme-dark">Dark</Label>
                             </div>
                              <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="system" id="theme-system" />
+                                <RadioGroupItem value="system" id="theme-system" disabled/>
                                 <Label htmlFor="theme-system">System</Label>
                             </div>
                          </RadioGroup>
@@ -158,15 +163,16 @@ export default function SettingsPage() {
                       <div>
                          <Label className="mb-2 block">Accent Color</Label>
                          {/* Basic example - ideally use actual color swatches */}
-                         <RadioGroup defaultValue={accentColor} onValueChange={setAccentColor} className="flex space-x-4">
+                         <RadioGroup defaultValue={accentColor} onValueChange={setAccentColor} className="flex space-x-4" disabled>
                             <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="coral" id="accent-coral" />
-                                <Label htmlFor="accent-coral" style={{color: '#FF7F50'}}>Coral</Label>
+                                <RadioGroupItem value="coral" id="accent-coral" disabled/>
+                                <Label htmlFor="accent-coral" style={{color: 'hsl(var(--accent))'}}>Coral</Label> {/* Use theme color */}
                             </div>
-                            <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="gold" id="accent-gold" />
+                            {/* <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="gold" id="accent-gold" disabled/>
                                 <Label htmlFor="accent-gold" style={{color: '#FFD700'}}>Gold</Label>
-                            </div>
+                            </div> */}
+                             {/* Add more accent options later */}
                          </RadioGroup>
                     </div>
                 </CardContent>
@@ -176,19 +182,20 @@ export default function SettingsPage() {
             <Card>
                 <CardHeader>
                     <CardTitle className="text-lg flex items-center"><Lock className="mr-2 h-5 w-5"/>Security</CardTitle>
-                    <CardDescription>Protect access to your app.</CardDescription>
+                    <CardDescription>Protect access to your app (feature coming soon).</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
+                <CardContent className="space-y-4 opacity-50 cursor-not-allowed">
                      <div className="flex items-center justify-between">
                         <Label htmlFor="app-lock" className="flex-1">Enable App Lock (PIN/Biometrics)</Label>
                         <Switch
                             id="app-lock"
                             checked={appLock}
                             onCheckedChange={setAppLock}
+                            disabled
                         />
                     </div>
                     {/* TODO: Add button to set/change PIN if appLock is enabled */}
-                     {appLock && <Button variant="outline" className="w-full">Set/Change PIN</Button>}
+                     {appLock && <Button variant="outline" className="w-full" disabled>Set/Change PIN</Button>}
                 </CardContent>
             </Card>
 
@@ -198,41 +205,45 @@ export default function SettingsPage() {
                  <CardHeader>
                     <CardTitle className="text-lg">Local Data Management</CardTitle>
                     <CardDescription className="text-sm text-muted-foreground !mt-1">
-                        Your health data is stored only on this device. Backups are user-managed and encrypted.
+                        Your cycle data is stored locally on this device. Backup and Export are planned features. Deleting data here is permanent.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <Button variant="outline" className="w-full flex items-center justify-center gap-2" onClick={handleBackup}>
-                        <FileDown className="h-4 w-4" /> Backup Data
+                        <FileDown className="h-4 w-4" /> Backup Data (Soon)
                     </Button>
                      <Button variant="outline" className="w-full flex items-center justify-center gap-2" onClick={handleExport}>
-                        <FileDown className="h-4 w-4" /> Export Data (CSV/PDF)
+                        <FileDown className="h-4 w-4" /> Export Data (Soon)
                     </Button>
 
                     <Separator />
 
-                    <AlertDialog>
+                    <AlertDialog onOpenChange={(open) => !open && setDeleteConfirmInput('')}> {/* Reset input on close */}
                         <AlertDialogTrigger asChild>
                              <Button variant="destructive" className="w-full flex items-center justify-center gap-2">
-                                <Trash2 className="h-4 w-4" /> Delete All Data
+                                <Trash2 className="h-4 w-4" /> Delete All Cycle Data
                             </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                             <AlertDialogHeader>
                                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                    This action cannot be undone. This will permanently delete all your cycle tracking data from this device. Type "DELETE" below to confirm.
+                                    This action cannot be undone. This will permanently delete all your cycle tracking data stored in this browser. Type <strong className="text-destructive">DELETE</strong> below to confirm.
                                 </AlertDialogDescription>
                             </AlertDialogHeader>
-                            {/* TODO: Add input for confirmation */}
-                             <Input id="delete-confirm" placeholder='Type "DELETE" to confirm' className="mt-2"/>
+                             <Input
+                                id="delete-confirm"
+                                placeholder='Type "DELETE" to confirm'
+                                value={deleteConfirmInput}
+                                onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                                className="mt-2 border-destructive focus-visible:ring-destructive"
+                              />
                             <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                {/* TODO: Disable Action until input matches "DELETE" */}
+                                <AlertDialogCancel onClick={() => setDeleteConfirmInput('')}>Cancel</AlertDialogCancel>
                                 <AlertDialogAction
-                                    onClick={handleDeleteAllData}
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                    // disabled={/* check input value */}
+                                    onClick={handleDeleteAllDataConfirmed}
+                                    disabled={isDeleteDisabled} // Disable action based on input
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:bg-destructive/50 disabled:cursor-not-allowed"
                                  >
                                     Delete Data
                                 </AlertDialogAction>
@@ -249,16 +260,20 @@ export default function SettingsPage() {
                     <CardTitle className="text-lg flex items-center"><CircleHelp className="mr-2 h-5 w-5"/>Help &amp; About</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                    <Button variant="link" className="p-0 h-auto justify-start">FAQ</Button><br />
-                    <Button variant="link" className="p-0 h-auto justify-start">Contact Support</Button><br />
-                    <Button variant="link" className="p-0 h-auto justify-start">Privacy Policy</Button><br />
+                    {/* TODO: Link these buttons to actual pages or modals */}
+                    <Button variant="link" className="p-0 h-auto justify-start" disabled>FAQ (Soon)</Button><br />
+                    <Button variant="link" className="p-0 h-auto justify-start" disabled>Contact Support (Soon)</Button><br />
+                    <Button variant="link" className="p-0 h-auto justify-start" disabled>Privacy Policy (Soon)</Button><br />
                     <p className="text-xs text-muted-foreground pt-2">App Version: 1.0.0</p>
                  </CardContent>
             </Card>
 
+             {/* Remove Save All Settings button for now as settings aren't editable */}
+             {/*
              <Button onClick={handleSaveSettings} className="w-full bg-accent hover:bg-accent/90 text-accent-foreground mt-8">
                  Save All Settings
             </Button>
+             */}
         </div>
     );
 }

@@ -3,6 +3,7 @@ import { Inter } from 'next/font/google'; // Using Inter for a clean, readable s
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import TopNavBar from '@/components/navigation/top-nav-bar';
+import { CycleDataProvider } from '@/context/CycleDataContext'; // Import the provider
 
 const inter = Inter({
   subsets: ['latin'],
@@ -21,12 +22,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${inter.variable} font-sans antialiased flex flex-col min-h-screen`}>
-        <TopNavBar />
-        <main className="flex-grow pt-16"> {/* Add padding-top to account for fixed nav bar */}
-          {children}
-        </main>
-        <Toaster />
+      <body className={`${inter.variable} font-sans antialiased flex flex-col min-h-screen bg-background`}>
+         {/* Wrap the main content area and navbar with the provider */}
+        <CycleDataProvider>
+            <TopNavBar />
+            <main className="flex-grow pt-16"> {/* Add padding-top to account for fixed nav bar */}
+            {children}
+            </main>
+            <Toaster />
+        </CycleDataProvider>
       </body>
     </html>
   );
