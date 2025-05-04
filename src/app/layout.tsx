@@ -1,3 +1,4 @@
+
 'use client'; // Make RootLayout a client component
 
 import type {Metadata} from 'next';
@@ -18,7 +19,7 @@ const inter = Inter({
 });
 
 // Define theme and accent types
-type Theme = 'light' | 'dark' | 'system';
+type Theme = 'light' | 'dark'; // Removed 'system'
 type AccentColor = 'coral' | 'gold';
 
 // Metadata export is not allowed in Client Components.
@@ -55,25 +56,31 @@ export default function RootLayout({
    };
 
 
-  // Effect to set initial theme and accent from localStorage or system preference
+  // Effect to set initial theme and accent from localStorage
   React.useEffect(() => {
     const root = window.document.documentElement;
     const storedTheme = localStorage.getItem('theme') as Theme | null;
     const storedAccent = localStorage.getItem('accentColor') as AccentColor | null;
 
-    // Apply Theme
+    // Apply Theme - Default to 'light' if invalid or not set
     root.classList.remove('light', 'dark');
-    let currentTheme: 'light' | 'dark';
-    if (storedTheme && storedTheme !== 'system') {
-      currentTheme = storedTheme;
-    } else {
-      currentTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
+    // Use stored value, default to 'light' if it's not 'dark'
+    const currentTheme = (storedTheme === 'dark') ? 'dark' : 'light';
     root.classList.add(currentTheme);
+    // Ensure localStorage has a valid default if it was missing/invalid
+    if (storedTheme !== 'light' && storedTheme !== 'dark') {
+      localStorage.setItem('theme', 'light');
+    }
 
-    // Apply Accent Color
-    const currentAccent = (storedAccent && ['coral', 'gold'].includes(storedAccent)) ? storedAccent : 'coral';
+    // Apply Accent Color - Default to 'coral' if invalid or not set
+    // Use stored value, default to 'coral' if it's not 'gold'
+    const currentAccent = (storedAccent === 'gold') ? 'gold' : 'coral';
     root.setAttribute('data-accent', currentAccent);
+     // Ensure localStorage has a valid default if it was missing/invalid
+    if (storedAccent !== 'coral' && storedAccent !== 'gold') {
+       localStorage.setItem('accentColor', 'coral');
+    }
+
 
   }, []); // Run only once on mount
 
@@ -113,3 +120,4 @@ export default function RootLayout({
     </html>
   );
 }
+

@@ -1,3 +1,4 @@
+
 // src/app/settings/page.tsx
 'use client'; // Required for interactions like toggles and buttons
 
@@ -104,14 +105,14 @@ export default function SettingsPage() {
         root.classList.remove('light', 'dark');
         root.classList.add(theme);
         localStorage.setItem('theme', theme); // Save theme change to localStorage
-    }, [theme]);
+    }); // Removed dependency array to run on every render
 
      // Apply accent color data attribute to HTML element
      React.useEffect(() => {
         const root = window.document.documentElement;
         root.setAttribute('data-accent', accentColor);
         localStorage.setItem('accentColor', accentColor); // Save accent change to localStorage
-    }, [accentColor]);
+    }); // Removed dependency array to run on every render
 
 
     // --- Effect for Cycle Calculations ---
