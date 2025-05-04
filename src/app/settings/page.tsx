@@ -64,9 +64,11 @@ export default function SettingsPage() {
         if (storedTheme && ['light', 'dark'].includes(storedTheme)) {
             setTheme(storedTheme);
         } else {
+            // Default to light theme if nothing is stored or value is invalid
             setTheme('light');
             localStorage.setItem('theme', 'light');
         }
+
 
         // Set accent
         if (storedAccent && ['coral', 'gold'].includes(storedAccent)) {
@@ -90,12 +92,14 @@ export default function SettingsPage() {
         const root = window.document.documentElement;
         root.classList.remove('light', 'dark');
         root.classList.add(theme);
+        localStorage.setItem('theme', theme); // Save theme change to localStorage
     }, [theme]);
 
      // Apply accent color data attribute to HTML element
      React.useEffect(() => {
         const root = window.document.documentElement;
         root.setAttribute('data-accent', accentColor);
+        localStorage.setItem('accentColor', accentColor); // Save accent change to localStorage
     }, [accentColor]);
 
 
@@ -172,7 +176,9 @@ export default function SettingsPage() {
 
 
                   // Determine the final end date
-                  const finalEndDate = endDate ?? (isAfter(lastFlowDate, date) ? lastFlowDate : date); // Use last flow date if > start date, otherwise assume 1 day
+                  // If explicit end found, use it. Otherwise, use the last flow date unless it's the same as the start date (and start date wasn't marked as end), then assume 1 day.
+                  const finalEndDate = endDate ?? (isAfter(lastFlowDate, date) ? lastFlowDate : date);
+
 
                   const length = differenceInDays(finalEndDate, date) + 1;
                   if (length > 0 && length < 20) { // Basic validation
@@ -192,14 +198,14 @@ export default function SettingsPage() {
     const handleThemeChange = (newTheme: string) => {
         const validTheme = newTheme as Theme;
         setTheme(validTheme);
-        localStorage.setItem('theme', validTheme);
+        // localStorage handled by useEffect
         toast({ title: "Theme Updated", description: `Theme set to ${validTheme}.` });
     };
 
     const handleAccentChange = (newAccent: string) => {
         const validAccent = newAccent as AccentColor;
         setAccentColor(validAccent);
-        localStorage.setItem('accentColor', validAccent);
+        // localStorage handled by useEffect
         toast({ title: "Accent Color Updated", description: `Accent set to ${validAccent}.` });
     };
 
@@ -208,7 +214,7 @@ export default function SettingsPage() {
         localStorage.setItem('periodReminder', JSON.stringify(checked));
         toast({
             title: "Reminder Updated",
-            description: `Period start reminder ${checked ? 'enabled' : 'disabled'}.`,
+            description: `Period start reminder ${checked ? 'enabled' : 'disabled'}. (Notifications not yet active)`,
         });
         // TODO: Implement actual notification scheduling/cancelling logic here or in a service worker
     };
@@ -218,7 +224,7 @@ export default function SettingsPage() {
         localStorage.setItem('fertileReminder', JSON.stringify(checked));
         toast({
             title: "Reminder Updated",
-            description: `Fertile window reminder ${checked ? 'enabled' : 'disabled'}.`,
+            description: `Fertile window reminder ${checked ? 'enabled' : 'disabled'}. (Notifications not yet active)`,
         });
         // TODO: Implement actual notification scheduling/cancelling logic here or in a service worker
     };
@@ -229,19 +235,26 @@ export default function SettingsPage() {
         toast({
             title: "Security Setting Updated",
             description: `App Lock ${checked ? 'enabled' : 'disabled'}.`,
-             variant: "default" // Or maybe "destructive" if disabling?
+             variant: "default"
         });
         if (checked) {
-             console.log("App Lock enabled - initiate PIN setup flow (not implemented)");
-             toast({ title: "PIN Setup Required", description: "App lock setup is not yet implemented.", variant: "destructive" });
+             console.log("App Lock enabled - PIN setup required (not implemented)");
+             // No automatic toast here, user needs to click the button
         } else {
             console.log("App Lock disabled - clear stored PIN (not implemented)");
+            // Optionally prompt to clear PIN if it was set
         }
     };
 
     const handleSetPin = () => {
         console.log("Set/Change PIN initiated");
-        toast({ title: "PIN Management Not Implemented", description: "Setting or changing the PIN is not yet available.", variant: "destructive" });
+        // Here you would typically open a modal or navigate to a PIN setup screen.
+        // For now, just show a toast indicating it's not implemented.
+        toast({
+            title: "PIN Setup Required",
+            description: "Setting up or changing the PIN is not yet implemented.",
+            variant: "default" // Use default variant, destructive is too strong for unimplemented feature
+        });
     };
 
 
@@ -369,25 +382,24 @@ export default function SettingsPage() {
                     <CardTitle className="text-lg flex items-center"><Lock className="mr-2 h-5 w-5"/>Security</CardTitle>
                     <CardDescription>Protect access to your app. (Requires further setup for full functionality)</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4"> {/* Removed opacity and cursor-not-allowed */}
+                <CardContent className="space-y-4">
                      <div className="flex items-center justify-between">
                         <Label htmlFor="app-lock" className="flex-1 pr-4">Enable App Lock (PIN/Biometrics)</Label>
                         <Switch
                             id="app-lock"
                             checked={appLock}
                             onCheckedChange={handleAppLockChange}
-                            // No longer disabled
                             aria-label="Toggle app lock"
                         />
                     </div>
-                     {/* Button is only enabled if appLock is true, but still shows unimplemented toast */}
+                     {/* Button is only enabled if appLock is true */}
                      <Button
                         variant="outline"
                         className="w-full"
                         disabled={!appLock} // Enable button only when app lock is toggled on
                         onClick={handleSetPin}
                     >
-                        Set/Change PIN (Soon)
+                        Set/Change PIN (Setup Required)
                     </Button>
                 </CardContent>
             </Card>
