@@ -3,11 +3,13 @@
 
 import * as React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { BarChart, LineChart, Droplet, CalendarDays, HeartPulse, Percent, Activity } from 'lucide-react'; // Added icons
+import { Droplet, CalendarDays, HeartPulse, Percent, Activity, LineChart, BarChart as BarChartIcon } from 'lucide-react'; // Renamed BarChart import to avoid conflict
 import { useCycleData, LogData } from '@/context/CycleDataContext';
-import { differenceInDays, format, parseISO, addDays, subDays, isWithinInterval, isValid, isAfter, isEqual } from 'date-fns'; // Add subDays, isValid, isAfter, isEqual
-import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
-import { cn } from '@/lib/utils'; // Import cn utility
+import { differenceInDays, format, parseISO, addDays, subDays, isWithinInterval, isValid, isAfter, isEqual } from 'date-fns';
+import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from 'recharts'; // Import necessary recharts components
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"; // Import shadcn chart components
 
 // Helper function to calculate cycle insights from log data
 const calculateCycleInsights = (logData: Record<string, LogData>): {
@@ -216,6 +218,15 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
 };
 
 
+// Define chart configuration
+const chartConfig = {
+  cycleLength: {
+    label: "Cycle Length (Days)",
+    color: "hsl(var(--chart-1))",
+  },
+} satisfies ChartConfig;
+
+
 export default function InsightsPage() {
   const { logData, isLoading } = useCycleData();
   const [insights, setInsights] = React.useState(calculateCycleInsights({})); // Initialize with default empty state
@@ -230,6 +241,14 @@ export default function InsightsPage() {
     }
      // Intentionally only depend on logData and isLoading.
   }, [logData, isLoading]);
+
+  // Format cycle length data for the chart
+  const cycleLengthChartData = React.useMemo(() => {
+      return insights.cycleLengths.map((length, index) => ({
+          cycleNumber: index + 1, // Start cycle numbering from 1
+          length: length,
+      }));
+  }, [insights.cycleLengths]);
 
 
   // Render Loading State
@@ -321,17 +340,42 @@ export default function InsightsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center">
-             <BarChart className="mr-2 h-5 w-5 text-chart-1"/> Cycle Length History
+             <BarChartIcon className="mr-2 h-5 w-5 text-chart-1"/> Cycle Length History
           </CardTitle>
           {insights.cycleLengths.length < 2 && <CardDescription className="!mt-1">Log at least two full cycles for history.</CardDescription>}
         </CardHeader>
         <CardContent>
-          {insights.cycleLengths.length >= 2 ? (
-             <div className="h-40 flex items-center justify-center bg-muted/50 rounded-md">
-                <p className="text-muted-foreground text-sm">Cycle length chart coming soon</p>
-                {/* TODO: Implement Bar Chart using shadcn/ui charts */}
-                 {/* <p className="text-xs text-muted-foreground mt-2">Data: {insights.cycleLengths.join(', ')}</p> */}
-             </div>
+          {cycleLengthChartData.length >= 2 ? (
+             <ChartContainer config={chartConfig} className="h-40 w-full">
+                 <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={cycleLengthChartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}> {/* Adjust margins */}
+                        <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                        <XAxis
+                            dataKey="cycleNumber"
+                            tickLine={false}
+                            axisLine={false}
+                            tickMargin={8}
+                            tickFormatter={(value) => `C${value}`} // Format ticks as C1, C2, etc.
+                            fontSize={10}
+                        />
+                        <YAxis
+                             type="number"
+                             domain={['dataMin - 2', 'dataMax + 2']} // Add padding to Y-axis
+                             allowDecimals={false}
+                             tickLine={false}
+                             axisLine={false}
+                             tickMargin={8}
+                             fontSize={10}
+                             // tickFormatter={(value) => `${value}d`} // Add 'd' for days
+                        />
+                         <ChartTooltip
+                             cursor={false}
+                             content={<ChartTooltipContent hideLabel />}
+                             />
+                        <Bar dataKey="length" fill="var(--color-cycleLength)" radius={4} />
+                    </BarChart>
+                </ResponsiveContainer>
+            </ChartContainer>
           ) : (
               <div className="h-40 flex items-center justify-center bg-muted/50 rounded-md">
                  <p className="text-muted-foreground text-center text-sm px-4">Log more cycle start dates to visualize your cycle length history.</p>
