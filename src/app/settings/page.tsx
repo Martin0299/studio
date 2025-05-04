@@ -24,24 +24,23 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Palette, Lock, Bell, FileDown, Trash2, CircleHelp } from 'lucide-react'; // Icons
 import { useCycleData } from '@/context/CycleDataContext'; // Import context
 import { cn } from '@/lib/utils'; // Import cn
+import { parseISO, format, subDays, addDays, differenceInDays, isAfter, isEqual, isValid } from 'date-fns'; // Import date-fns functions
 
-// Define theme type
-type Theme = 'light' | 'dark' | 'system';
+// Define theme type (Removed 'system')
+type Theme = 'light' | 'dark';
 type AccentColor = 'coral' | 'gold';
 
 export default function SettingsPage() {
     const { toast } = useToast();
-    const { deleteAllData, logData } = useCycleData(); // Get delete function and logData from context
+    const { deleteAllData, logData, isLoading: isCycleDataLoading } = useCycleData(); // Get delete function and logData from context
     const [deleteConfirmInput, setDeleteConfirmInput] = React.useState(''); // State for delete confirmation input
 
     // -- Appearance State --
-    // Use state that defaults to system/coral, but gets overridden by localStorage in useEffect
-    const [theme, setTheme] = React.useState<Theme>('system');
+    // Use state that defaults to light/coral, but gets overridden by localStorage in useEffect
+    const [theme, setTheme] = React.useState<Theme>('light');
     const [accentColor, setAccentColor] = React.useState<AccentColor>('coral');
 
     // -- Cycle State (Derived from context) --
-    // Calculate averages here based on logData - reuse logic from Insights or create a helper
-    // Placeholder values for now
     const [avgCycleLength, setAvgCycleLength] = React.useState<number | null>(null);
     const [avgPeriodLength, setAvgPeriodLength] = React.useState<number | null>(null);
 
@@ -57,11 +56,21 @@ export default function SettingsPage() {
     React.useEffect(() => {
         const storedTheme = localStorage.getItem('theme') as Theme | null;
         const storedAccent = localStorage.getItem('accentColor') as AccentColor | null;
-        if (storedTheme && ['light', 'dark', 'system'].includes(storedTheme)) {
+
+        // Set theme, defaulting to 'light' if invalid or not found
+        if (storedTheme && ['light', 'dark'].includes(storedTheme)) {
             setTheme(storedTheme);
+        } else {
+            setTheme('light'); // Default to light
+            localStorage.setItem('theme', 'light'); // Store the default if needed
         }
+
+        // Set accent, defaulting to 'coral'
         if (storedAccent && ['coral', 'gold'].includes(storedAccent)) {
             setAccentColor(storedAccent);
+        } else {
+            setAccentColor('coral');
+            localStorage.setItem('accentColor', 'coral');
         }
     }, []);
 
@@ -69,13 +78,8 @@ export default function SettingsPage() {
     React.useEffect(() => {
         const root = window.document.documentElement;
         root.classList.remove('light', 'dark');
-
-        if (theme === 'system') {
-            const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-            root.classList.add(systemTheme);
-        } else {
-            root.classList.add(theme);
-        }
+        // Apply the selected theme directly (no 'system' option)
+        root.classList.add(theme);
     }, [theme]);
 
      // Apply accent color data attribute to HTML element
@@ -87,16 +91,17 @@ export default function SettingsPage() {
 
     // --- Effect for Cycle Calculations ---
      React.useEffect(() => {
-         // Basic calculation - ideally share logic with Insights page
+         if (isCycleDataLoading || !logData) return; // Don't calculate if loading or no data
+
          const periodStartDates: Date[] = [];
          const periodLengths: number[] = [];
          const cycleLengths: number[] = [];
 
          const sortedDates = Object.keys(logData)
-             .filter(dateString => { try { return !!parseISO(dateString); } catch { return false; } })
+             .filter(dateString => isValid(parseISO(dateString)))
              .sort((a, b) => parseISO(a).getTime() - parseISO(b).getTime());
 
-          sortedDates.forEach((dateString, index) => {
+          sortedDates.forEach((dateString) => {
               const entry = logData[dateString];
               if (!entry || !entry.date) return;
 
@@ -113,51 +118,72 @@ export default function SettingsPage() {
                  if (periodStartDates.length > 1) {
                      const previousStartDate = periodStartDates[periodStartDates.length - 2];
                      const cycleLength = differenceInDays(date, previousStartDate);
-                      if (cycleLength > 10 && cycleLength < 100) {
+                      if (cycleLength > 10 && cycleLength < 100) { // Basic validation
                          cycleLengths.push(cycleLength);
                      }
                  }
 
-                  // Calculate length for the period starting now
-                  let currentPeriodLength = 1;
-                  let lookAheadDate = addDays(date, 1);
-                  let lookAheadString = format(lookAheadDate, 'yyyy-MM-dd');
-                  while(logData[lookAheadString]?.periodFlow && logData[lookAheadString]?.periodFlow !== 'none') {
-                    currentPeriodLength++;
-                    if (logData[lookAheadString]?.isPeriodEnd) break; // Stop if end marker found
-                    lookAheadDate = addDays(lookAheadDate, 1);
-                    lookAheadString = format(lookAheadDate, 'yyyy-MM-dd');
-                  }
-                  // Alternative: find explicit end marker if exists
+                 // --- Calculate Period Length for the period starting 'date' ---
                   let endDate: Date | null = null;
-                  for (let d = index; d < sortedDates.length; d++) {
-                       const currentDateString = sortedDates[d];
-                       const currentDate = parseISO(currentDateString);
-                       if (!isAfter(currentDate, date) && !isEqual(currentDate, date)) continue; // Skip past dates
+                  let lastFlowDate = date; // Initialize with the start date
 
-                       const currentEntry = logData[currentDateString];
-                        if (currentEntry?.isPeriodEnd) {
-                             endDate = currentDate;
-                             break;
+                  // Iterate forwards from the start date
+                  let tempDate = date;
+                  while (true) {
+                      const tempDateString = format(tempDate, 'yyyy-MM-dd');
+                      const tempEntry = logData[tempDateString];
+
+                      // Check if it's an explicitly marked end day
+                      if (tempEntry?.isPeriodEnd) {
+                          endDate = tempDate;
+                          break; // Found the end marker
+                      }
+
+                      // Check if the *next* day exists and has no flow
+                      const nextDay = addDays(tempDate, 1);
+                      const nextDayString = format(nextDay, 'yyyy-MM-dd');
+                      const nextEntry = logData[nextDayString];
+
+                      if (!nextEntry || !nextEntry.periodFlow || nextEntry.periodFlow === 'none') {
+                          // If next day has no flow or doesn't exist, the current day is the last flow day
+                          // Use this as the end date *only if* no explicit end marker was found later
+                           lastFlowDate = tempDate;
+                           // Don't break yet, keep checking for an explicit 'isPeriodEnd' marker further out
+                           // break; // Removed break to allow searching for explicit end marker
+                      }
+
+                      // Move to the next day
+                      tempDate = addDays(tempDate, 1);
+
+                       // Safety break: Stop searching after a reasonable duration (e.g., 30 days)
+                       if (differenceInDays(tempDate, date) > 30) {
+                           break;
+                       }
+
+                       // Stop if we've passed the *next* period start date (if available)
+                       if (periodStartDates.length > cycleLengths.length + 1) { // Check if next start date exists
+                            const nextStartDate = periodStartDates[periodStartDates.length - 1];
+                            if (isAfter(tempDate, nextStartDate)) {
+                                break;
+                            }
                         }
-                        // If no explicit end marker, the last flow day determines length (handled by while loop above implicitly if no end marker)
                   }
 
-                  if (endDate) {
-                      const length = differenceInDays(endDate, date) + 1;
-                      if (length > 0 && length < 20) periodLengths.push(length);
-                  } else if (currentPeriodLength > 0 && currentPeriodLength < 20) {
-                      // Use length from consecutive flow days if no end marker found
-                       periodLengths.push(currentPeriodLength);
-                  }
+                 // Use explicit end date if found, otherwise use the last consecutive flow day
+                 const finalEndDate = endDate ?? lastFlowDate;
 
+                  const length = differenceInDays(finalEndDate, date) + 1;
+                  if (length > 0 && length < 20) { // Basic validation
+                      periodLengths.push(length);
+                  }
+                 // --- End Period Length Calculation ---
              }
          });
 
          setAvgCycleLength(cycleLengths.length > 0 ? Math.round(cycleLengths.reduce((a, b) => a + b, 0) / cycleLengths.length) : null);
          setAvgPeriodLength(periodLengths.length > 0 ? Math.round(periodLengths.reduce((a, b) => a + b, 0) / periodLengths.length) : null);
 
-     }, [logData]); // Recalculate when logData changes
+     }, [logData, isCycleDataLoading]); // Recalculate when logData or loading state changes
 
     // --- Handlers ---
 
@@ -193,10 +219,6 @@ export default function SettingsPage() {
     };
 
     const isDeleteDisabled = deleteConfirmInput !== 'DELETE';
-
-    // Import date-fns functions used in useEffect
-    const { parseISO, format, subDays, addDays, differenceInDays, isAfter, isEqual } = require('date-fns');
-
 
     return (
         <div className="container mx-auto py-6 px-4 max-w-md space-y-8">
@@ -279,10 +301,7 @@ export default function SettingsPage() {
                                 <RadioGroupItem value="dark" id="theme-dark" />
                                 <Label htmlFor="theme-dark">Dark</Label>
                             </div>
-                             <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="system" id="theme-system" />
-                                <Label htmlFor="theme-system">System</Label>
-                            </div>
+                            {/* Removed System Option */}
                          </RadioGroup>
                      </div>
                       <div>
@@ -291,11 +310,11 @@ export default function SettingsPage() {
                             <div className="flex items-center space-x-2">
                                 <RadioGroupItem value="coral" id="accent-coral" />
                                 {/* Apply inline style for preview, but actual color comes from CSS variables */}
-                                <Label htmlFor="accent-coral" style={{ color: 'hsl(16 100% 66%)' }}>Coral</Label>
+                                <Label htmlFor="accent-coral" style={{ color: 'hsl(var(--accent-coral))' }}>Coral</Label> {/* Updated style access */}
                             </div>
                              <div className="flex items-center space-x-2">
                                 <RadioGroupItem value="gold" id="accent-gold" />
-                                <Label htmlFor="accent-gold" style={{ color: 'hsl(45 100% 70%)' }}>Gold</Label>
+                                <Label htmlFor="accent-gold" style={{ color: 'hsl(var(--accent-gold))' }}>Gold</Label> {/* Updated style access */}
                             </div>
                          </RadioGroup>
                     </div>
@@ -332,10 +351,10 @@ export default function SettingsPage() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <Button variant="outline" className="w-full flex items-center justify-center gap-2" onClick={handleBackup}>
+                    <Button variant="outline" className="w-full flex items-center justify-center gap-2" onClick={handleBackup} disabled>
                         <FileDown className="h-4 w-4" /> Backup Data (Soon)
                     </Button>
-                     <Button variant="outline" className="w-full flex items-center justify-center gap-2" onClick={handleExport}>
+                     <Button variant="outline" className="w-full flex items-center justify-center gap-2" onClick={handleExport} disabled>
                         <FileDown className="h-4 w-4" /> Export Data (Soon)
                     </Button>
 
