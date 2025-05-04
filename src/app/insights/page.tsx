@@ -5,7 +5,7 @@ import * as React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Droplet, CalendarDays, HeartPulse, Percent, Activity, LineChart, BarChart as BarChartIcon, Info } from 'lucide-react'; // Added Info icon
 import { useCycleData, LogData } from '@/context/CycleDataContext';
-import { differenceInDays, format, parseISO, addDays, subDays, isWithinInterval, isValid, isAfter, isEqual, startOfDay, isBefore } from 'date-fns'; // Added isBefore
+import { differenceInDays, format, parseISO, addDays, subDays, isWithinInterval, isValid, isAfter, isEqual, startOfDay, isBefore } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from 'recharts';
@@ -350,6 +350,13 @@ const cycleLengthChartConfig = {
   },
 } satisfies ChartConfig;
 
+const periodLengthChartConfig = {
+  length: {
+    label: "Period Length (Days)",
+    color: "hsl(var(--chart-2))",
+  },
+} satisfies ChartConfig;
+
 const activityChartConfig = {
   count: {
     label: "Activity Count",
@@ -391,6 +398,16 @@ export default function InsightsPage() {
           fill: "var(--color-length)", // Add fill color
       }));
   }, [insights.cycleLengths]);
+
+  // Format period length data for the chart
+  const periodLengthChartData = React.useMemo(() => {
+    if (insights.periodLengths.length < 1) return []; // Allow chart with even one period length
+    return insights.periodLengths.map((length, index) => ({
+        periodNumber: index + 1,
+        length: length,
+        fill: "var(--color-length)", // Add fill color
+    }));
+}, [insights.periodLengths]);
 
   // Format sexual activity data for the chart
    const activityChartData = React.useMemo(() => {
@@ -555,7 +572,7 @@ export default function InsightsPage() {
         </CardContent>
       </Card>
 
-      {/* Period Length History Card (Placeholder/Coming Soon) */}
+      {/* Period Length History Card */}
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center">
@@ -564,9 +581,42 @@ export default function InsightsPage() {
            {!hasEnoughPeriodData && <CardDescription className="!mt-1">Log period flow and end dates for at least one period for history.</CardDescription>}
         </CardHeader>
         <CardContent>
-            <div className="h-40 flex items-center justify-center bg-muted/50 rounded-md">
-                <p className="text-muted-foreground text-center text-sm px-4">Period length chart coming soon. Log your period flow and mark the last day.</p>
-            </div>
+            {periodLengthChartData.length > 0 ? (
+                 <ChartContainer config={periodLengthChartConfig} className="h-40 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={periodLengthChartData} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                            <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                            <XAxis
+                                dataKey="periodNumber"
+                                tickLine={false}
+                                axisLine={false}
+                                tickMargin={8}
+                                tickFormatter={(value) => `P${value}`}
+                                fontSize={10}
+                            />
+                            <YAxis
+                                type="number"
+                                domain={['dataMin - 1', 'dataMax + 1']}
+                                allowDecimals={false}
+                                tickLine={false}
+                                axisLine={false}
+                                tickMargin={8}
+                                fontSize={10}
+                                width={30}
+                            />
+                            <ChartTooltip
+                                cursor={false}
+                                content={<ChartTooltipContent indicator="dot" nameKey="length"/>} // Pass nameKey for label
+                            />
+                            <Bar dataKey="length" name="Period Length" radius={4} />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </ChartContainer>
+            ) : (
+                <div className="h-40 flex items-center justify-center bg-muted/50 rounded-md">
+                    <p className="text-muted-foreground text-center text-sm px-4">Log your period flow and mark the last day to visualize period length history.</p>
+                </div>
+            )}
         </CardContent>
       </Card>
 
