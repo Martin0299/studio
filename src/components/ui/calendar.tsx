@@ -24,15 +24,15 @@ function Calendar({
       classNames={{
         months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
         month: "space-y-4",
-        caption: "flex justify-center items-center h-14 border-b relative px-8", // Increased px-4 to px-8
+        caption: "flex justify-center items-center h-14 border-b relative px-4", // Reduced padding back to px-4
         caption_label: "text-lg font-semibold", // Made label larger
-        nav: "flex items-center absolute inset-y-0", // Contains the buttons
+        nav: "flex items-center absolute inset-y-0 w-full", // Ensure nav spans width for positioning
         nav_button: cn(
           buttonVariants({ variant: "outline" }),
-          "h-9 w-9 bg-transparent p-0 text-muted-foreground hover:text-foreground hover:bg-muted" // Made buttons slightly larger and aligned with general button styles
+          "absolute h-9 w-9 bg-transparent p-0 text-muted-foreground hover:text-foreground hover:bg-muted" // Made buttons slightly larger and aligned with general button styles
         ),
-        nav_button_previous: "left-4", // Positioned left with more space
-        nav_button_next: "right-4", // Positioned right with more space
+        nav_button_previous: "left-1", // Positioned closer to left edge
+        nav_button_next: "right-1", // Positioned closer to right edge
         table: "w-full border-collapse space-y-1",
         head_row: "flex",
         head_cell:
@@ -48,6 +48,7 @@ function Calendar({
           "last:[&:has([aria-selected])]:rounded-r-md",
           "focus-within:relative focus-within:z-20"
         ),
+        // We use DayContent now, so direct day styles are less important
         day: cn(
           buttonVariants({ variant: "ghost" }),
           "h-10 w-10 p-0 font-normal aria-selected:opacity-100"
