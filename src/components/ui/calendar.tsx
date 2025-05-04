@@ -25,14 +25,14 @@ function Calendar({
         months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
         month: "space-y-4",
         caption: "flex justify-center items-center h-14 border-b relative px-4", // Reduced padding back to px-4
-        caption_label: "text-lg font-semibold", // Made label larger
-        nav: "flex items-center absolute inset-y-0 w-full", // Ensure nav spans width for positioning
+        caption_label: "text-lg font-semibold flex-grow text-center", // Allow label to grow and center text
+        nav: "flex items-center absolute inset-y-0 w-full px-1", // Add padding to nav container
         nav_button: cn(
           buttonVariants({ variant: "outline" }),
           "absolute h-9 w-9 bg-transparent p-0 text-muted-foreground hover:text-foreground hover:bg-muted" // Made buttons slightly larger and aligned with general button styles
         ),
-        nav_button_previous: "left-1", // Positioned closer to left edge
-        nav_button_next: "right-1", // Positioned closer to right edge
+        nav_button_previous: 'left-1', // Positioned closer to left edge
+        nav_button_next: 'right-1', // Positioned closer to right edge
         table: "w-full border-collapse space-y-1",
         head_row: "flex",
         head_cell:
