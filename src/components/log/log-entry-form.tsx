@@ -1,10 +1,11 @@
+// components/log/log-entry-form.tsx
 'use client';
 
 import * as React from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -14,14 +15,13 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Switch } from '@/components/ui/switch';
-import { Droplet, Zap, CloudRain, Wind, Smile, StickyNote, ShieldCheck, Ban } from 'lucide-react'; // Example icons
+import { Droplet, Zap, CloudRain, Wind, Smile, StickyNote, ShieldCheck, Ban, FlagOff } from 'lucide-react'; // Added FlagOff
 import { useCycleData, LogData } from '@/context/CycleDataContext'; // Import context and LogData type
 import { useRouter } from 'next/navigation'; // Import useRouter
 
@@ -52,6 +52,7 @@ const flowOptions = [
 const logEntrySchema = z.object({
   date: z.date(), // Keep date object for internal form state if needed, but we save string
   periodFlow: z.enum(['none', 'light', 'medium', 'heavy']).default('none'),
+  isPeriodEnd: z.boolean().default(false), // Added period end field
   symptoms: z.array(z.string()).default([]),
   mood: z.string().optional().default(undefined), // Ensure optional fields default to undefined for consistency
   sexualActivity: z.boolean().default(false),
@@ -60,6 +61,9 @@ const logEntrySchema = z.object({
 }).refine(data => data.sexualActivity ? data.protectionUsed !== undefined : true, {
     message: "Please specify if protection was used during sexual activity.", // Example validation
     path: ["protectionUsed"], // Path of the error
+}).refine(data => !(data.isPeriodEnd && data.periodFlow === 'none'), {
+    message: "Cannot mark end of period without selecting a flow intensity.",
+    path: ["isPeriodEnd"], // Path of the error
 });
 
 
@@ -82,6 +86,7 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
     defaultValues: {
       date: selectedDate,
       periodFlow: existingLog?.periodFlow ?? 'none',
+      isPeriodEnd: existingLog?.isPeriodEnd ?? false, // Initialize period end
       symptoms: existingLog?.symptoms ?? [],
       mood: existingLog?.mood ?? undefined,
       sexualActivity: existingLog?.sexualActivity ?? false,
@@ -98,6 +103,7 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
     form.reset({
       date: selectedDate,
       periodFlow: logForDate?.periodFlow ?? 'none',
+      isPeriodEnd: logForDate?.isPeriodEnd ?? false, // Reset period end
       symptoms: logForDate?.symptoms ?? [],
       mood: logForDate?.mood ?? undefined,
       sexualActivity: logForDate?.sexualActivity ?? false,
@@ -112,9 +118,11 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
     const { date, ...logDataToSave } = data;
 
      // Ensure protectionUsed is only saved if sexualActivity is true
+     // Ensure isPeriodEnd is false if periodFlow is 'none'
     const finalLogData: Omit<LogData, 'date'> = {
         ...logDataToSave,
         protectionUsed: logDataToSave.sexualActivity ? logDataToSave.protectionUsed ?? false : undefined,
+        isPeriodEnd: logDataToSave.periodFlow !== 'none' ? logDataToSave.isPeriodEnd : false,
     };
 
 
@@ -129,6 +137,9 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
 
   // Watch sexualActivity field to conditionally render protectionUsed
   const watchSexualActivity = form.watch('sexualActivity');
+  const watchPeriodFlow = form.watch('periodFlow');
+  const watchIsPeriodEnd = form.watch('isPeriodEnd');
+
 
   React.useEffect(() => {
       // If sexual activity is toggled off, reset protectionUsed field
@@ -139,6 +150,25 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
            form.setValue('protectionUsed', false, { shouldValidate: true });
       }
   }, [watchSexualActivity, form]);
+
+    // If period flow is set to 'none', ensure 'isPeriodEnd' is false
+    React.useEffect(() => {
+        if (watchPeriodFlow === 'none' && watchIsPeriodEnd) {
+            form.setValue('isPeriodEnd', false, { shouldValidate: true });
+        }
+    }, [watchPeriodFlow, watchIsPeriodEnd, form]);
+
+     // If 'isPeriodEnd' is toggled on, but flow is 'none', set flow to 'light' (or last known?)
+    React.useEffect(() => {
+        if (watchIsPeriodEnd && watchPeriodFlow === 'none') {
+            form.setValue('periodFlow', 'light', { shouldValidate: true }); // Default to light if ending period with no flow selected
+            toast({
+                title: "Flow Updated",
+                description: "Period flow set to 'Light' as you marked this as the end day.",
+                variant: "default"
+            });
+        }
+    }, [watchIsPeriodEnd, watchPeriodFlow, form, toast]);
 
 
    if (isLoading) {
@@ -159,7 +189,7 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
           <CardHeader>
             <CardTitle className="text-lg flex items-center"><Droplet className="mr-2 h-5 w-5 text-primary" />Menstruation</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4"> {/* Added space-y-4 */}
             <FormField
               control={form.control}
               name="periodFlow"
@@ -197,6 +227,29 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
                 </FormItem>
               )}
             />
+             {/* Period End Switch */}
+             <FormField
+                control={form.control}
+                name="isPeriodEnd"
+                render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-0.5">
+                        <FormLabel className="text-base flex items-center">
+                         <FlagOff className="mr-2 h-5 w-5 text-red-600"/> Mark as Last Day of Period
+                        </FormLabel>
+                        <FormMessage className="text-xs" />
+                    </div>
+                    <FormControl>
+                        <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        disabled={watchPeriodFlow === 'none' && !field.value} // Disable if flow is none unless it's already checked (to allow unchecking)
+                        aria-label="Mark as Last Day of Period"
+                        />
+                    </FormControl>
+                    </FormItem>
+                )}
+                />
           </CardContent>
         </Card>
 

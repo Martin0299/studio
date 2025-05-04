@@ -13,6 +13,7 @@ export interface LogData {
   sexualActivity?: boolean;
   protectionUsed?: boolean;
   notes?: string;
+  isPeriodEnd?: boolean; // New field to mark the end of a period
   // Add other relevant fields as needed
 }
 
@@ -35,9 +36,19 @@ function getKeyForDate(date: Date): string {
 export function saveLogEntry(date: Date, data: Omit<LogData, 'date'>): void {
   try {
     const key = getKeyForDate(date);
+    // If setting isPeriodEnd to true, ensure periodFlow is not 'none'
+    const isEndingPeriod = data.isPeriodEnd === true;
+    const periodFlow = data.periodFlow && data.periodFlow !== 'none'
+        ? data.periodFlow
+        : (isEndingPeriod ? getLogEntry(date)?.periodFlow ?? 'light' : 'none'); // If ending, keep existing or default to light, otherwise 'none'
+
+
     const entryToSave: LogData = {
         ...data,
         date: format(date, 'yyyy-MM-dd'), // Ensure date string is stored
+        periodFlow: periodFlow,
+        // Ensure isPeriodEnd is false or undefined if flow is 'none'
+        isPeriodEnd: periodFlow !== 'none' ? data.isPeriodEnd : false,
     };
     localStorage.setItem(key, JSON.stringify(entryToSave));
     // Optional: Dispatch a custom event to notify other components of the update
