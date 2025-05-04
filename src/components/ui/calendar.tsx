@@ -48,9 +48,9 @@ function Calendar({
           "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
         day_today: "bg-accent text-accent-foreground",
         day_outside:
-          "day-outside text-muted-foreground aria-selected:bg-accent/50 aria-selected:text-muted-foreground",
-        // Use the passed 'disabled' prop to apply styles
-        day_disabled: "text-muted-foreground opacity-50 cursor-not-allowed", // Updated disabled styling
+          "day-outside text-muted-foreground/50 aria-selected:bg-accent/50 aria-selected:text-muted-foreground", // Adjusted opacity for outside days
+        // Ensure disabled style is applied correctly and consistently
+        day_disabled: "text-muted-foreground/50 opacity-50 cursor-not-allowed aria-disabled:cursor-not-allowed", // Added explicit cursor-not-allowed for aria-disabled
         day_range_middle:
           "aria-selected:bg-accent aria-selected:text-accent-foreground",
         day_hidden: "invisible",

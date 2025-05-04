@@ -62,7 +62,12 @@ const calculateDayInfo = (date: Date, logs: Record<string, LogData>, allSortedPe
   if (lastPeriodStartDate) {
     // Find the corresponding end date (logged end or assume based on length)
     let periodEndDate: Date | null = null;
-    const logsArray = Object.values(logs).sort((a,b) => parseISO(a.date).getTime() - parseISO(b.date).getTime());
+    const logsArray = Object.values(logs).sort((a,b) => {
+        // Handle cases where date might be missing or invalid
+        const timeA = a.date ? parseISO(a.date).getTime() : 0;
+        const timeB = b.date ? parseISO(b.date).getTime() : 0;
+        return timeA - timeB;
+    });
     for (const log of logsArray) {
         if (!log.date) continue; // Skip if date is missing (safety check)
         const logDate = parseISO(log.date);
@@ -142,10 +147,15 @@ export default function CalendarView() {
           // Heuristic to identify start dates: Check if the previous day wasn't a period day or doesn't exist
           .filter(log => {
               if (!log.date) return false; // Safety check
-              const prevDay = subDays(parseISO(log.date), 1);
-              const prevDayString = format(prevDay, 'yyyy-MM-dd');
-              const prevLog = logData[prevDayString];
-              return !prevLog || !prevLog.periodFlow || prevLog.periodFlow === 'none';
+              try {
+                const prevDay = subDays(parseISO(log.date), 1);
+                const prevDayString = format(prevDay, 'yyyy-MM-dd');
+                const prevLog = logData[prevDayString];
+                return !prevLog || !prevLog.periodFlow || prevLog.periodFlow === 'none';
+              } catch (e) {
+                  console.error(`Error processing date for period start check: ${log.date}`, e);
+                  return false; // Exclude if date is invalid
+              }
           })
           .map(log => parseISO(log.date!)) // Use non-null assertion after filter
           .sort((a, b) => a.getTime() - b.getTime());
@@ -189,70 +199,76 @@ export default function CalendarView() {
 
     const dayInfo = monthDayInfo[dateString];
 
-    if (isLoading) {
-         return <Skeleton className="h-10 w-10 rounded-full" />;
-    }
-     if (isOutside) {
-       // Render future outside days as disabled
-       const futureClass = isFutureDate ? 'text-muted-foreground/20 opacity-30 cursor-not-allowed' : 'text-muted-foreground/30 opacity-50';
-       return <div className={cn("h-10 w-10 flex items-center justify-center", futureClass)}>{format(date, 'd')}</div>;
-    }
-    if (!dayInfo) {
-        // Render a basic day if info hasn't been calculated yet
-        const futureClass = isFutureDate ? 'text-muted-foreground/50 opacity-50 cursor-not-allowed' : '';
-        return <div className={cn("h-10 w-10 flex items-center justify-center", futureClass)}>{format(date, 'd')}</div>;
-    }
-
-
-    const isSelected = selectedDate && isEqual(normalizedDay, selectedDate);
-    const isToday = isEqual(normalizedDay, startOfDay(new Date()));
-
-
-    // Visual Indicators - Using background, border, text, and icons
-    let baseClasses = 'relative w-full h-full flex items-center justify-center transition-colors duration-150 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 cursor-pointer'; // Make div clickable
+    // --- Styling Logic ---
+    let baseClasses = 'relative w-full h-full flex items-center justify-center transition-colors duration-150 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1';
     let backgroundClass = '';
     let textClass = 'text-foreground/80'; // Default text
     let borderClass = 'border border-transparent';
     let iconOverlay = null;
     let shapeClass = 'rounded-full'; // Default shape
     let activityIndicator = null; // Dot for sexual activity
+    let cursorClass = 'cursor-pointer'; // Default cursor
 
-     // --- Disabled Future Date Styling (High Priority) ---
-     if (isFutureDate) {
-        baseClasses = cn(baseClasses, 'text-muted-foreground/50 opacity-50 cursor-not-allowed');
-        // Ensure no other background/border overrides disabled state visually
+    // --- Loading State ---
+    if (isLoading) {
+         return <Skeleton className="h-10 w-10 rounded-full" />;
+    }
+
+    // --- Outside Month Days ---
+    if (isOutside) {
+        textClass = isFutureDate ? 'text-muted-foreground/20' : 'text-muted-foreground/30';
+        cursorClass = isFutureDate ? 'cursor-not-allowed' : 'cursor-default'; // No interaction for future outside days
+        baseClasses = cn(baseClasses, 'opacity-50');
+        if (isFutureDate) baseClasses = cn(baseClasses, 'opacity-30');
+        // Reset other styles for outside days
         backgroundClass = '';
-        borderClass = 'border border-transparent';
+        borderClass = 'border-transparent';
         iconOverlay = null;
         activityIndicator = null;
-        shapeClass = 'rounded-full'; // Keep shape simple
-        textClass = 'text-muted-foreground/50'; // Explicitly set text color
-     } else {
-        // --- Period Styling (Only if not future date) ---
+        shapeClass = 'rounded-full';
+    }
+    // --- Future Date Styling (Inside Current Month) ---
+    else if (isFutureDate) {
+        textClass = 'text-muted-foreground/50';
+        cursorClass = 'cursor-not-allowed';
+        baseClasses = cn(baseClasses, 'opacity-50');
+        // Reset other styles for future dates
+        backgroundClass = '';
+        borderClass = 'border-transparent';
+        iconOverlay = null;
+        activityIndicator = null;
+        shapeClass = 'rounded-full';
+    }
+    // --- Normal Day Styling (Past and Today) ---
+    else if (dayInfo) { // Only apply detailed styling if dayInfo exists and it's not a future date
+        const isSelected = selectedDate && isEqual(normalizedDay, selectedDate);
+        const isToday = isEqual(normalizedDay, today);
+
+        // --- Period Styling ---
         if (dayInfo.isPeriodStart) {
             backgroundClass = 'bg-primary';
             textClass = 'text-primary-foreground font-semibold';
-            shapeClass = 'rounded-l-full'; // Start of range shape
-            borderClass = 'border-y-2 border-l-2 border-primary'; // Stronger border start
+            shapeClass = 'rounded-l-full';
+            borderClass = 'border-y-2 border-l-2 border-primary';
              if (dayInfo.isPeriodEnd) shapeClass = 'rounded-full'; // If start and end are same day
         } else if (dayInfo.isPeriodEnd) {
             backgroundClass = 'bg-primary';
             textClass = 'text-primary-foreground font-semibold';
-            shapeClass = 'rounded-r-full'; // End of range shape
-             borderClass = 'border-y-2 border-r-2 border-primary'; // Stronger border end
+            shapeClass = 'rounded-r-full';
+             borderClass = 'border-y-2 border-r-2 border-primary';
         } else if (dayInfo.isInPeriodRange) {
-            backgroundClass = 'bg-primary/80'; // Slightly lighter fill for in-between days
+            backgroundClass = 'bg-primary/80';
             textClass = 'text-primary-foreground/90';
-            shapeClass = 'rounded-none'; // Square shape for middle days
-             borderClass = 'border-y-2 border-primary/80'; // Match background opacity
-        } else if (dayInfo.isPeriod) { // Fallback for single period days if range logic fails
+            shapeClass = 'rounded-none';
+             borderClass = 'border-y-2 border-primary/80';
+        } else if (dayInfo.isPeriod) { // Fallback
              backgroundClass = 'bg-primary';
              textClass = 'text-primary-foreground font-semibold';
              shapeClass = 'rounded-full';
              borderClass = 'border-2 border-primary';
         }
 
-        // --- Other States (Apply if not a period day and not future date) ---
+        // --- Other States (Apply if not a period day) ---
         if (!backgroundClass) {
             if (dayInfo.isFertile && !dayInfo.isOvulation) {
                 backgroundClass = 'bg-secondary/10';
@@ -263,23 +279,22 @@ export default function CalendarView() {
                 textClass = 'text-muted-foreground';
             }
 
-            // Ovulation Styling (can overlay fertile)
+            // Ovulation Styling
             if (dayInfo.isOvulation) {
-                backgroundClass = cn(backgroundClass, 'bg-accent/15'); // Combine backgrounds if needed
+                backgroundClass = cn(backgroundClass, 'bg-accent/15');
                 borderClass = 'border-2 border-accent/60';
                 textClass = 'text-accent font-medium';
                 iconOverlay = <Sparkles className="absolute top-0.5 right-0.5 h-3 w-3 stroke-2 text-accent" />;
             }
 
-             // Logged Data Indicator (General Checkmark)
+             // Logged Data Indicator
             const hasOtherLogs = dayInfo.loggedData && (
                 (dayInfo.loggedData.symptoms && dayInfo.loggedData.symptoms.length > 0) ||
                 dayInfo.loggedData.mood ||
                 dayInfo.loggedData.notes
             );
-            if (hasOtherLogs && !dayInfo.isPeriod) { // Show checkmark if other logs exist and it's not a period day
+            if (hasOtherLogs && !dayInfo.isPeriod) {
                 const iconPosition = dayInfo.isOvulation ? "bottom-0.5 left-0.5" : "top-0.5 right-0.5";
-                 // Don't overwrite ovulation sparkle if it exists
                 if (!iconOverlay || !dayInfo.isOvulation) {
                      iconOverlay = <CheckCircle className={cn("absolute h-3 w-3", iconPosition, "text-muted-foreground/70")} aria-label="Data logged" />;
                 }
@@ -287,71 +302,71 @@ export default function CalendarView() {
 
              // Today's Styling
             if (isToday && !isSelected) {
-               borderClass = cn(borderClass !== 'border border-transparent' ? borderClass : '', 'border-2 border-ring'); // Add ring-like border if no other border
+               borderClass = cn(borderClass !== 'border border-transparent' ? borderClass : '', 'border-2 border-ring');
                textClass = cn(textClass, 'font-semibold');
             }
 
-             // Hover effect only for non-selected, non-period days
+             // Hover effect
              if (!isSelected && !backgroundClass.includes('bg-primary')) {
                 baseClasses = cn(baseClasses, 'hover:bg-muted/50 hover:border-border');
              }
         }
 
-        // Sexual Activity Indicator (Dot) - Show regardless of other styles except selection
+        // Sexual Activity Indicator
         if (dayInfo.hasSexualActivity && !isSelected) {
             activityIndicator = <span className="absolute bottom-0.5 left-0.5 h-1.5 w-1.5 rounded-full bg-red-500" aria-label="Sexual activity logged" />;
         }
 
-
         // --- Selection Styling (Overrides others) ---
         if (isSelected) {
-            backgroundClass = 'bg-accent'; // Accent color for selection
+            backgroundClass = 'bg-accent';
             textClass = 'text-accent-foreground font-bold';
             borderClass = 'border-2 border-accent';
-            // Ensure selection ring is visible
             baseClasses = cn(baseClasses, 'ring-2 ring-accent ring-offset-1 ring-offset-background shadow-md');
-            if (iconOverlay) { // Make icon contrast with selection
+            if (iconOverlay) {
                 iconOverlay = React.cloneElement(iconOverlay as React.ReactElement, { className: cn((iconOverlay as React.ReactElement).props.className, 'text-accent-foreground/80') });
             }
-            // Make activity dot contrast with selection
              if (dayInfo.hasSexualActivity) {
                  activityIndicator = <span className="absolute bottom-0.5 left-0.5 h-1.5 w-1.5 rounded-full bg-white" aria-label="Sexual activity logged" />;
              }
 
-             // If selected day is part of period range, adjust shape
+             // Adjust shape based on period range connection if selected
              if (dayInfo.isPeriodStart && !dayInfo.isPeriodEnd) shapeClass = 'rounded-l-full';
              else if (dayInfo.isPeriodEnd && !dayInfo.isPeriodStart) shapeClass = 'rounded-r-full';
              else if (dayInfo.isInPeriodRange) shapeClass = 'rounded-none';
-             else shapeClass = 'rounded-full'; // Default selected shape
+             else shapeClass = 'rounded-full';
         } else {
-            // If not selected, but part of range, connect shapes
-            // Check neighbours (simple check, might need refinement for month edges)
+            // Handle shape connection for non-selected period range days
              const prevDayString = format(subDays(normalizedDay, 1), 'yyyy-MM-dd');
              const nextDayString = format(addDays(normalizedDay, 1), 'yyyy-MM-dd');
              const prevDayInfo = monthDayInfo[prevDayString];
              const nextDayInfo = monthDayInfo[nextDayString];
 
              const isInRangeLike = dayInfo.isPeriodStart || dayInfo.isPeriodEnd || dayInfo.isInPeriodRange;
-             // Check if neighbour is *visually* part of the range (start, end, or in-between)
              const prevIsInRangeLike = prevDayInfo && (prevDayInfo.isPeriodStart || prevDayInfo.isInPeriodRange);
              const nextIsInRangeLike = nextDayInfo && (nextDayInfo.isPeriodEnd || nextDayInfo.isInPeriodRange);
              const isPrevPeriodEnd = prevDayInfo && prevDayInfo.isPeriodEnd;
              const isNextPeriodStart = nextDayInfo && nextDayInfo.isPeriodStart;
 
-
             if (isInRangeLike) {
-                 // Connect shapes if neighbours are also part of the visual range
-                 // Don't connect if the neighbour is the end/start of a *different* period instance
-                if (prevIsInRangeLike && nextIsInRangeLike && !isPrevPeriodEnd && !isNextPeriodStart) shapeClass = 'rounded-none'; // Middle piece
-                 else if (prevIsInRangeLike && !isPrevPeriodEnd) shapeClass = 'rounded-r-full'; // Connected to left only
-                 else if (nextIsInRangeLike && !isNextPeriodStart) shapeClass = 'rounded-l-full'; // Connected to right only
+                if (prevIsInRangeLike && nextIsInRangeLike && !isPrevPeriodEnd && !isNextPeriodStart) shapeClass = 'rounded-none';
+                else if (prevIsInRangeLike && !isPrevPeriodEnd) shapeClass = 'rounded-r-full';
+                else if (nextIsInRangeLike && !isNextPeriodStart) shapeClass = 'rounded-l-full';
 
-                 // Specific start/end day shapes (override connection logic if needed)
-                 if (dayInfo.isPeriodStart && dayInfo.isPeriodEnd) shapeClass = 'rounded-full'; // Single day period
-                 else if (dayInfo.isPeriodStart) shapeClass = 'rounded-l-full';
-                 else if (dayInfo.isPeriodEnd) shapeClass = 'rounded-r-full';
+                // Specific start/end day shapes
+                if (dayInfo.isPeriodStart && dayInfo.isPeriodEnd) shapeClass = 'rounded-full';
+                else if (dayInfo.isPeriodStart) shapeClass = 'rounded-l-full';
+                else if (dayInfo.isPeriodEnd) shapeClass = 'rounded-r-full';
             }
         }
+    } else {
+        // Basic rendering for days with no info (e.g., loading gaps)
+        const isToday = isEqual(normalizedDay, today);
+        if (isToday) {
+             borderClass = cn(borderClass !== 'border border-transparent' ? borderClass : '', 'border-2 border-ring');
+             textClass = cn(textClass, 'font-semibold');
+        }
+         baseClasses = cn(baseClasses, 'hover:bg-muted/50 hover:border-border');
     }
 
 
@@ -360,18 +375,20 @@ export default function CalendarView() {
       backgroundClass,
       borderClass,
       textClass,
-      shapeClass
+      shapeClass,
+      cursorClass // Apply the determined cursor style
     );
 
     return (
-        // Replace button with div to avoid nesting button issue
+        // Use div instead of button to avoid nesting issues and apply click handler
         <div
           className={combinedClasses}
           onClick={(e) => handleDayClick(normalizedDay, {}, e)}
-          aria-label={`Details for ${format(normalizedDay, 'PPP')}`}
-          role="button" // Keep role for accessibility
-          tabIndex={isFutureDate ? -1 : 0} // Make future dates not focusable
-          onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && !isFutureDate) handleDayClick(normalizedDay, {}, e as any); }} // Trigger click on Enter/Space only if not future date
+          aria-label={!isFutureDate ? `Details for ${format(normalizedDay, 'PPP')}` : `Future date ${format(normalizedDay, 'PPP')}, disabled`}
+          role={!isFutureDate ? "button" : undefined} // Role button only for clickable dates
+          tabIndex={isFutureDate || isOutside ? -1 : 0} // Make future/outside dates not focusable
+          onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && !isFutureDate && !isOutside) handleDayClick(normalizedDay, {}, e as any); }}
+          aria-disabled={isFutureDate || isOutside} // Indicate disabled state
         >
            {format(normalizedDay, 'd')}
            {iconOverlay}
@@ -407,8 +424,10 @@ export default function CalendarView() {
         selectedDayInfo.isFertile ||
         selectedDayInfo.isOvulation ||
         selectedDayInfo.isPredictedPeriod ||
-        (selectedDayInfo.loggedData && Object.keys(selectedDayInfo.loggedData).length > 1) || // Check if more than just 'date' exists
-        (selectedDayInfo.loggedData?.periodFlow && selectedDayInfo.loggedData.periodFlow !== 'none')
+        (selectedDayInfo.loggedData && Object.keys(selectedDayInfo.loggedData).length > 1 &&
+         Object.entries(selectedDayInfo.loggedData).some(([key, value]) =>
+            key !== 'date' && value !== undefined && value !== '' && value !== false && value !== 0 && (!Array.isArray(value) || value.length > 0)
+         ))
    );
 
 
@@ -424,7 +443,7 @@ export default function CalendarView() {
                 // onSelect is handled by DayContent click now
                 month={currentMonth}
                 onMonthChange={(month) => setCurrentMonth(startOfDay(month))}
-                disabled={(date) => isAfter(date, today)} // Disable future dates
+                disabled={(date) => isAfter(date, today)} // Disable future dates in DayPicker internals
                 className="p-0"
                 classNames={{
                     root: 'bg-card text-card-foreground rounded-lg',
@@ -450,7 +469,8 @@ export default function CalendarView() {
                     day_selected: ' ', // Handled by DayContent
                     day_today: ' ', // Handled by DayContent
                     day_outside: ' ', // Handled by DayContent (renders dimmed number)
-                    day_disabled: 'text-muted-foreground/50 opacity-50 cursor-not-allowed', // Style for disabled dates
+                    // Apply stricter disabled styling to ensure visual consistency
+                    day_disabled: 'text-muted-foreground/50 opacity-50 cursor-not-allowed',
                     day_hidden: 'invisible',
                     // Range styles might interfere, reset them
                     day_range_start: ' ',
