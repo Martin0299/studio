@@ -12,10 +12,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { format, parseISO, startOfDay, isBefore, isAfter, isEqual, addDays, subDays, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 import Link from 'next/link';
-import { Droplet, Sparkles, HeartPulse, Smile, CloudRain, Zap, StickyNote, Info, CheckCircle, Wind, FlagOff, SmilePlus, ShieldCheck, Ban, Minus, Plus } from 'lucide-react'; // Added relevant icons, Ban
-import { useCycleData, LogData } from '@/context/CycleDataContext'; // Import context and LogData type
-import { cn } from '@/lib/utils'; // Import cn utility
-import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
+import { Droplet, Sparkles, HeartPulse, Smile, CloudRain, Zap, StickyNote, Info, CheckCircle, Wind, FlagOff, SmilePlus, ShieldCheck, Ban, Minus, Plus } from 'lucide-react';
+import { useCycleData, LogData } from '@/context/CycleDataContext';
+import { cn } from '@/lib/utils';
+import { Skeleton } from '@/components/ui/skeleton';
 
 // Structure for derived calendar data including period range info
 interface DayInfo {
@@ -133,6 +133,8 @@ export default function CalendarView() {
   const [monthDayInfo, setMonthDayInfo] = React.useState<Record<string, DayInfo>>({});
   const [popoverOpen, setPopoverOpen] = React.useState(false);
 
+  const today = startOfDay(new Date()); // Define today at the beginning
+
    // Pre-calculate sorted period start dates for efficiency
    const allSortedPeriodStartDates = React.useMemo(() => {
       return Object.values(logData)
@@ -173,7 +175,7 @@ export default function CalendarView() {
 
 
   const handleDayClick = (day: Date | undefined, modifiers: any, e: React.MouseEvent<HTMLDivElement>) => {
-    if (!day) return;
+    if (!day || isAfter(day, today)) return; // Don't select future dates
     const normalizedDay = startOfDay(day);
     setSelectedDate(normalizedDay);
     setPopoverOpen(true); // Open popover on day click
@@ -183,6 +185,7 @@ export default function CalendarView() {
     const normalizedDay = startOfDay(date);
     const dateString = format(normalizedDay, 'yyyy-MM-dd');
     const isOutside = normalizedDay.getMonth() !== displayMonth.getMonth();
+    const isFutureDate = isAfter(normalizedDay, today); // Check if it's a future date
 
     const dayInfo = monthDayInfo[dateString];
 
@@ -190,11 +193,14 @@ export default function CalendarView() {
          return <Skeleton className="h-10 w-10 rounded-full" />;
     }
      if (isOutside) {
-       return <div className="h-10 w-10 flex items-center justify-center text-muted-foreground/30 opacity-50">{format(date, 'd')}</div>;
+       // Render future outside days as disabled
+       const futureClass = isFutureDate ? 'text-muted-foreground/20 opacity-30 cursor-not-allowed' : 'text-muted-foreground/30 opacity-50';
+       return <div className={cn("h-10 w-10 flex items-center justify-center", futureClass)}>{format(date, 'd')}</div>;
     }
     if (!dayInfo) {
         // Render a basic day if info hasn't been calculated yet
-        return <div className="h-10 w-10 flex items-center justify-center">{format(date, 'd')}</div>;
+        const futureClass = isFutureDate ? 'text-muted-foreground/50 opacity-50 cursor-not-allowed' : '';
+        return <div className={cn("h-10 w-10 flex items-center justify-center", futureClass)}>{format(date, 'd')}</div>;
     }
 
 
@@ -211,128 +217,140 @@ export default function CalendarView() {
     let shapeClass = 'rounded-full'; // Default shape
     let activityIndicator = null; // Dot for sexual activity
 
-    // --- Period Styling ---
-    if (dayInfo.isPeriodStart) {
-        backgroundClass = 'bg-primary';
-        textClass = 'text-primary-foreground font-semibold';
-        shapeClass = 'rounded-l-full'; // Start of range shape
-        borderClass = 'border-y-2 border-l-2 border-primary'; // Stronger border start
-         if (dayInfo.isPeriodEnd) shapeClass = 'rounded-full'; // If start and end are same day
-    } else if (dayInfo.isPeriodEnd) {
-        backgroundClass = 'bg-primary';
-        textClass = 'text-primary-foreground font-semibold';
-        shapeClass = 'rounded-r-full'; // End of range shape
-         borderClass = 'border-y-2 border-r-2 border-primary'; // Stronger border end
-    } else if (dayInfo.isInPeriodRange) {
-        backgroundClass = 'bg-primary/80'; // Slightly lighter fill for in-between days
-        textClass = 'text-primary-foreground/90';
-        shapeClass = 'rounded-none'; // Square shape for middle days
-         borderClass = 'border-y-2 border-primary/80'; // Match background opacity
-    } else if (dayInfo.isPeriod) { // Fallback for single period days if range logic fails
-         backgroundClass = 'bg-primary';
-         textClass = 'text-primary-foreground font-semibold';
-         shapeClass = 'rounded-full';
-         borderClass = 'border-2 border-primary';
-    }
-
-    // --- Other States (Apply if not a period day) ---
-    if (!backgroundClass) {
-        if (dayInfo.isFertile && !dayInfo.isOvulation) {
-            backgroundClass = 'bg-secondary/10';
-            borderClass = 'border border-dashed border-secondary/40';
-            textClass = 'text-secondary-foreground/80';
-        } else if (dayInfo.isPredictedPeriod) {
-            borderClass = 'border border-dashed border-primary/30';
-            textClass = 'text-muted-foreground';
+     // --- Disabled Future Date Styling (High Priority) ---
+     if (isFutureDate) {
+        baseClasses = cn(baseClasses, 'text-muted-foreground/50 opacity-50 cursor-not-allowed');
+        // Ensure no other background/border overrides disabled state visually
+        backgroundClass = '';
+        borderClass = 'border border-transparent';
+        iconOverlay = null;
+        activityIndicator = null;
+        shapeClass = 'rounded-full'; // Keep shape simple
+        textClass = 'text-muted-foreground/50'; // Explicitly set text color
+     } else {
+        // --- Period Styling (Only if not future date) ---
+        if (dayInfo.isPeriodStart) {
+            backgroundClass = 'bg-primary';
+            textClass = 'text-primary-foreground font-semibold';
+            shapeClass = 'rounded-l-full'; // Start of range shape
+            borderClass = 'border-y-2 border-l-2 border-primary'; // Stronger border start
+             if (dayInfo.isPeriodEnd) shapeClass = 'rounded-full'; // If start and end are same day
+        } else if (dayInfo.isPeriodEnd) {
+            backgroundClass = 'bg-primary';
+            textClass = 'text-primary-foreground font-semibold';
+            shapeClass = 'rounded-r-full'; // End of range shape
+             borderClass = 'border-y-2 border-r-2 border-primary'; // Stronger border end
+        } else if (dayInfo.isInPeriodRange) {
+            backgroundClass = 'bg-primary/80'; // Slightly lighter fill for in-between days
+            textClass = 'text-primary-foreground/90';
+            shapeClass = 'rounded-none'; // Square shape for middle days
+             borderClass = 'border-y-2 border-primary/80'; // Match background opacity
+        } else if (dayInfo.isPeriod) { // Fallback for single period days if range logic fails
+             backgroundClass = 'bg-primary';
+             textClass = 'text-primary-foreground font-semibold';
+             shapeClass = 'rounded-full';
+             borderClass = 'border-2 border-primary';
         }
 
-        // Ovulation Styling (can overlay fertile)
-        if (dayInfo.isOvulation) {
-            backgroundClass = cn(backgroundClass, 'bg-accent/15'); // Combine backgrounds if needed
-            borderClass = 'border-2 border-accent/60';
-            textClass = 'text-accent font-medium';
-            iconOverlay = <Sparkles className="absolute top-0.5 right-0.5 h-3 w-3 stroke-2 text-accent" />;
-        }
-
-         // Logged Data Indicator (General Checkmark)
-        const hasOtherLogs = dayInfo.loggedData && (
-            (dayInfo.loggedData.symptoms && dayInfo.loggedData.symptoms.length > 0) ||
-            dayInfo.loggedData.mood ||
-            dayInfo.loggedData.notes
-        );
-        if (hasOtherLogs && !dayInfo.isPeriod) { // Show checkmark if other logs exist and it's not a period day
-            const iconPosition = dayInfo.isOvulation ? "bottom-0.5 left-0.5" : "top-0.5 right-0.5";
-             // Don't overwrite ovulation sparkle if it exists
-            if (!iconOverlay || !dayInfo.isOvulation) {
-                 iconOverlay = <CheckCircle className={cn("absolute h-3 w-3", iconPosition, "text-muted-foreground/70")} aria-label="Data logged" />;
+        // --- Other States (Apply if not a period day and not future date) ---
+        if (!backgroundClass) {
+            if (dayInfo.isFertile && !dayInfo.isOvulation) {
+                backgroundClass = 'bg-secondary/10';
+                borderClass = 'border border-dashed border-secondary/40';
+                textClass = 'text-secondary-foreground/80';
+            } else if (dayInfo.isPredictedPeriod) {
+                borderClass = 'border border-dashed border-primary/30';
+                textClass = 'text-muted-foreground';
             }
+
+            // Ovulation Styling (can overlay fertile)
+            if (dayInfo.isOvulation) {
+                backgroundClass = cn(backgroundClass, 'bg-accent/15'); // Combine backgrounds if needed
+                borderClass = 'border-2 border-accent/60';
+                textClass = 'text-accent font-medium';
+                iconOverlay = <Sparkles className="absolute top-0.5 right-0.5 h-3 w-3 stroke-2 text-accent" />;
+            }
+
+             // Logged Data Indicator (General Checkmark)
+            const hasOtherLogs = dayInfo.loggedData && (
+                (dayInfo.loggedData.symptoms && dayInfo.loggedData.symptoms.length > 0) ||
+                dayInfo.loggedData.mood ||
+                dayInfo.loggedData.notes
+            );
+            if (hasOtherLogs && !dayInfo.isPeriod) { // Show checkmark if other logs exist and it's not a period day
+                const iconPosition = dayInfo.isOvulation ? "bottom-0.5 left-0.5" : "top-0.5 right-0.5";
+                 // Don't overwrite ovulation sparkle if it exists
+                if (!iconOverlay || !dayInfo.isOvulation) {
+                     iconOverlay = <CheckCircle className={cn("absolute h-3 w-3", iconPosition, "text-muted-foreground/70")} aria-label="Data logged" />;
+                }
+            }
+
+             // Today's Styling
+            if (isToday && !isSelected) {
+               borderClass = cn(borderClass !== 'border border-transparent' ? borderClass : '', 'border-2 border-ring'); // Add ring-like border if no other border
+               textClass = cn(textClass, 'font-semibold');
+            }
+
+             // Hover effect only for non-selected, non-period days
+             if (!isSelected && !backgroundClass.includes('bg-primary')) {
+                baseClasses = cn(baseClasses, 'hover:bg-muted/50 hover:border-border');
+             }
         }
 
-         // Today's Styling
-        if (isToday && !isSelected) {
-           borderClass = cn(borderClass !== 'border border-transparent' ? borderClass : '', 'border-2 border-ring'); // Add ring-like border if no other border
-           textClass = cn(textClass, 'font-semibold');
+        // Sexual Activity Indicator (Dot) - Show regardless of other styles except selection
+        if (dayInfo.hasSexualActivity && !isSelected) {
+            activityIndicator = <span className="absolute bottom-0.5 left-0.5 h-1.5 w-1.5 rounded-full bg-red-500" aria-label="Sexual activity logged" />;
         }
 
-         // Hover effect only for non-selected, non-period days
-         if (!isSelected && !backgroundClass.includes('bg-primary')) {
-            baseClasses = cn(baseClasses, 'hover:bg-muted/50 hover:border-border');
-         }
-    }
 
-    // Sexual Activity Indicator (Dot) - Show regardless of other styles except selection
-    if (dayInfo.hasSexualActivity && !isSelected) {
-        activityIndicator = <span className="absolute bottom-0.5 left-0.5 h-1.5 w-1.5 rounded-full bg-red-500" aria-label="Sexual activity logged" />;
-    }
+        // --- Selection Styling (Overrides others) ---
+        if (isSelected) {
+            backgroundClass = 'bg-accent'; // Accent color for selection
+            textClass = 'text-accent-foreground font-bold';
+            borderClass = 'border-2 border-accent';
+            // Ensure selection ring is visible
+            baseClasses = cn(baseClasses, 'ring-2 ring-accent ring-offset-1 ring-offset-background shadow-md');
+            if (iconOverlay) { // Make icon contrast with selection
+                iconOverlay = React.cloneElement(iconOverlay as React.ReactElement, { className: cn((iconOverlay as React.ReactElement).props.className, 'text-accent-foreground/80') });
+            }
+            // Make activity dot contrast with selection
+             if (dayInfo.hasSexualActivity) {
+                 activityIndicator = <span className="absolute bottom-0.5 left-0.5 h-1.5 w-1.5 rounded-full bg-white" aria-label="Sexual activity logged" />;
+             }
 
+             // If selected day is part of period range, adjust shape
+             if (dayInfo.isPeriodStart && !dayInfo.isPeriodEnd) shapeClass = 'rounded-l-full';
+             else if (dayInfo.isPeriodEnd && !dayInfo.isPeriodStart) shapeClass = 'rounded-r-full';
+             else if (dayInfo.isInPeriodRange) shapeClass = 'rounded-none';
+             else shapeClass = 'rounded-full'; // Default selected shape
+        } else {
+            // If not selected, but part of range, connect shapes
+            // Check neighbours (simple check, might need refinement for month edges)
+             const prevDayString = format(subDays(normalizedDay, 1), 'yyyy-MM-dd');
+             const nextDayString = format(addDays(normalizedDay, 1), 'yyyy-MM-dd');
+             const prevDayInfo = monthDayInfo[prevDayString];
+             const nextDayInfo = monthDayInfo[nextDayString];
 
-    // --- Selection Styling (Overrides others) ---
-    if (isSelected) {
-        backgroundClass = 'bg-accent'; // Accent color for selection
-        textClass = 'text-accent-foreground font-bold';
-        borderClass = 'border-2 border-accent';
-        // Ensure selection ring is visible
-        baseClasses = cn(baseClasses, 'ring-2 ring-accent ring-offset-1 ring-offset-background shadow-md');
-        if (iconOverlay) { // Make icon contrast with selection
-            iconOverlay = React.cloneElement(iconOverlay as React.ReactElement, { className: cn((iconOverlay as React.ReactElement).props.className, 'text-accent-foreground/80') });
-        }
-        // Make activity dot contrast with selection
-         if (dayInfo.hasSexualActivity) {
-             activityIndicator = <span className="absolute bottom-0.5 left-0.5 h-1.5 w-1.5 rounded-full bg-white" aria-label="Sexual activity logged" />;
-         }
-
-         // If selected day is part of period range, adjust shape
-         if (dayInfo.isPeriodStart && !dayInfo.isPeriodEnd) shapeClass = 'rounded-l-full';
-         else if (dayInfo.isPeriodEnd && !dayInfo.isPeriodStart) shapeClass = 'rounded-r-full';
-         else if (dayInfo.isInPeriodRange) shapeClass = 'rounded-none';
-         else shapeClass = 'rounded-full'; // Default selected shape
-    } else {
-        // If not selected, but part of range, connect shapes
-        // Check neighbours (simple check, might need refinement for month edges)
-         const prevDayString = format(subDays(normalizedDay, 1), 'yyyy-MM-dd');
-         const nextDayString = format(addDays(normalizedDay, 1), 'yyyy-MM-dd');
-         const prevDayInfo = monthDayInfo[prevDayString];
-         const nextDayInfo = monthDayInfo[nextDayString];
-
-         const isInRangeLike = dayInfo.isPeriodStart || dayInfo.isPeriodEnd || dayInfo.isInPeriodRange;
-         // Check if neighbour is *visually* part of the range (start, end, or in-between)
-         const prevIsInRangeLike = prevDayInfo && (prevDayInfo.isPeriodStart || prevDayInfo.isInPeriodRange);
-         const nextIsInRangeLike = nextDayInfo && (nextDayInfo.isPeriodEnd || nextDayInfo.isInPeriodRange);
-         const isPrevPeriodEnd = prevDayInfo && prevDayInfo.isPeriodEnd;
-         const isNextPeriodStart = nextDayInfo && nextDayInfo.isPeriodStart;
+             const isInRangeLike = dayInfo.isPeriodStart || dayInfo.isPeriodEnd || dayInfo.isInPeriodRange;
+             // Check if neighbour is *visually* part of the range (start, end, or in-between)
+             const prevIsInRangeLike = prevDayInfo && (prevDayInfo.isPeriodStart || prevDayInfo.isInPeriodRange);
+             const nextIsInRangeLike = nextDayInfo && (nextDayInfo.isPeriodEnd || nextDayInfo.isInPeriodRange);
+             const isPrevPeriodEnd = prevDayInfo && prevDayInfo.isPeriodEnd;
+             const isNextPeriodStart = nextDayInfo && nextDayInfo.isPeriodStart;
 
 
-        if (isInRangeLike) {
-             // Connect shapes if neighbours are also part of the visual range
-             // Don't connect if the neighbour is the end/start of a *different* period instance
-            if (prevIsInRangeLike && nextIsInRangeLike && !isPrevPeriodEnd && !isNextPeriodStart) shapeClass = 'rounded-none'; // Middle piece
-             else if (prevIsInRangeLike && !isPrevPeriodEnd) shapeClass = 'rounded-r-full'; // Connected to left only
-             else if (nextIsInRangeLike && !isNextPeriodStart) shapeClass = 'rounded-l-full'; // Connected to right only
+            if (isInRangeLike) {
+                 // Connect shapes if neighbours are also part of the visual range
+                 // Don't connect if the neighbour is the end/start of a *different* period instance
+                if (prevIsInRangeLike && nextIsInRangeLike && !isPrevPeriodEnd && !isNextPeriodStart) shapeClass = 'rounded-none'; // Middle piece
+                 else if (prevIsInRangeLike && !isPrevPeriodEnd) shapeClass = 'rounded-r-full'; // Connected to left only
+                 else if (nextIsInRangeLike && !isNextPeriodStart) shapeClass = 'rounded-l-full'; // Connected to right only
 
-             // Specific start/end day shapes (override connection logic if needed)
-             if (dayInfo.isPeriodStart && dayInfo.isPeriodEnd) shapeClass = 'rounded-full'; // Single day period
-             else if (dayInfo.isPeriodStart) shapeClass = 'rounded-l-full';
-             else if (dayInfo.isPeriodEnd) shapeClass = 'rounded-r-full';
+                 // Specific start/end day shapes (override connection logic if needed)
+                 if (dayInfo.isPeriodStart && dayInfo.isPeriodEnd) shapeClass = 'rounded-full'; // Single day period
+                 else if (dayInfo.isPeriodStart) shapeClass = 'rounded-l-full';
+                 else if (dayInfo.isPeriodEnd) shapeClass = 'rounded-r-full';
+            }
         }
     }
 
@@ -352,8 +370,8 @@ export default function CalendarView() {
           onClick={(e) => handleDayClick(normalizedDay, {}, e)}
           aria-label={`Details for ${format(normalizedDay, 'PPP')}`}
           role="button" // Keep role for accessibility
-          tabIndex={0} // Make it focusable
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleDayClick(normalizedDay, {}, e as any); }} // Trigger click on Enter/Space
+          tabIndex={isFutureDate ? -1 : 0} // Make future dates not focusable
+          onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && !isFutureDate) handleDayClick(normalizedDay, {}, e as any); }} // Trigger click on Enter/Space only if not future date
         >
            {format(normalizedDay, 'd')}
            {iconOverlay}
@@ -406,37 +424,38 @@ export default function CalendarView() {
                 // onSelect is handled by DayContent click now
                 month={currentMonth}
                 onMonthChange={(month) => setCurrentMonth(startOfDay(month))}
+                disabled={(date) => isAfter(date, today)} // Disable future dates
                 className="p-0"
                 classNames={{
-                root: 'bg-card text-card-foreground rounded-lg',
-                caption: 'flex justify-center items-center h-14 border-b relative px-4',
-                caption_label: 'text-lg font-semibold text-foreground',
-                nav: 'flex items-center absolute inset-y-0',
-                nav_button: cn( // Standard button styles
-                    'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
-                    'h-9 w-9 p-0 text-muted-foreground hover:text-foreground hover:bg-muted' // Specific styles for nav buttons
-                ),
-                nav_button_previous: 'left-2',
-                nav_button_next: 'right-2',
-                table: 'w-full border-collapse mt-1',
-                head_row: 'flex justify-around items-center h-10',
-                head_cell: 'w-10 text-muted-foreground font-medium text-sm',
-                row: 'flex w-full mt-0.5 justify-around', // Reduced row spacing slightly
-                cell: cn( // Cell container - remove internal padding, apply on DayContent
-                    'h-10 w-10 text-center text-sm p-0 relative',
-                    'focus-within:relative focus-within:z-20'
-                ),
-                // Daypicker's default day styles - we don't use them directly
-                day: 'h-10 w-10 p-0 font-normal', // Base size for layout
-                day_selected: ' ', // Handled by DayContent
-                day_today: ' ', // Handled by DayContent
-                day_outside: ' ', // Handled by DayContent (renders dimmed number)
-                day_disabled: 'text-muted-foreground/50 opacity-50 cursor-not-allowed',
-                day_hidden: 'invisible',
-                // Range styles might interfere, reset them
-                day_range_start: ' ',
-                day_range_end: ' ',
-                day_range_middle: ' ',
+                    root: 'bg-card text-card-foreground rounded-lg',
+                    caption: 'flex justify-center items-center h-14 border-b relative px-4',
+                    caption_label: 'text-lg font-semibold text-foreground',
+                    nav: 'flex items-center absolute inset-y-0',
+                    nav_button: cn( // Standard button styles
+                        'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
+                        'h-9 w-9 p-0 text-muted-foreground hover:text-foreground hover:bg-muted' // Specific styles for nav buttons
+                    ),
+                    nav_button_previous: 'left-2',
+                    nav_button_next: 'right-2',
+                    table: 'w-full border-collapse mt-1',
+                    head_row: 'flex justify-around items-center h-10',
+                    head_cell: 'w-10 text-muted-foreground font-medium text-sm',
+                    row: 'flex w-full mt-0.5 justify-around', // Reduced row spacing slightly
+                    cell: cn( // Cell container - remove internal padding, apply on DayContent
+                        'h-10 w-10 text-center text-sm p-0 relative',
+                        'focus-within:relative focus-within:z-20'
+                    ),
+                    // Daypicker's default day styles - we don't use them directly
+                    day: 'h-10 w-10 p-0 font-normal', // Base size for layout
+                    day_selected: ' ', // Handled by DayContent
+                    day_today: ' ', // Handled by DayContent
+                    day_outside: ' ', // Handled by DayContent (renders dimmed number)
+                    day_disabled: 'text-muted-foreground/50 opacity-50 cursor-not-allowed', // Style for disabled dates
+                    day_hidden: 'invisible',
+                    // Range styles might interfere, reset them
+                    day_range_start: ' ',
+                    day_range_end: ' ',
+                    day_range_middle: ' ',
                 }}
                 components={{
                   DayContent: ({ date, displayMonth }) => renderDayContent(date, displayMonth),
