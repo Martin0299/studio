@@ -21,7 +21,7 @@ export default function Chatbot() {
     {
       id: 'initial',
       sender: 'bot',
-      text: "Hello! I'm Luna, your virtual health assistant. How can I help you today regarding your cycle or related health questions?",
+      text: "Hello! I'm Luna, your virtual health visitor and maternity nurse. How can I help you today with questions about pregnancy, planning, or your little ones?",
     },
   ]);
   const [input, setInput] = React.useState('');
@@ -156,3 +156,4 @@ export default function Chatbot() {
     </div>
   );
 }
+

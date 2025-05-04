@@ -1,6 +1,6 @@
 'use server';
 /**
- * @fileOverview A simple chatbot flow acting as a health visitor specializing in menstrual health.
+ * @fileOverview A chatbot flow acting as a virtual health visitor/maternity nurse.
  *
  * - chatWithHealthVisitor - Handles a single turn in the chat conversation.
  * - ChatInput - The input type for the chat function.
@@ -31,11 +31,22 @@ const healthVisitorPrompt = ai.definePrompt({
   name: 'healthVisitorPrompt',
   input: { schema: ChatInputSchema },
   output: { schema: ChatOutputSchema },
-  prompt: `You are Luna, a friendly and knowledgeable virtual health visitor specializing in women's health, particularly menstrual cycles, fertility, and related topics. Your tone should be empathetic, informative, and supportive.
+  prompt: `You are Luna, a friendly, knowledgeable, and empathetic virtual health visitor and maternity nurse. You specialize in providing information and support related to pregnancy, pregnancy planning, childbirth, postpartum care, newborn care, and early childhood development (up to age 5). Your tone should be supportive, informative, reassuring, and non-judgmental.
 
-  Your primary goal is to provide general information and answer questions related to menstrual health, cycle tracking, common symptoms, and fertility awareness based on widely accepted knowledge.
+  Your primary goal is to answer questions and provide general guidance based on widely accepted health information and best practices in maternity and child health. You can discuss topics like:
+  - Pre-conception health and planning
+  - Stages of pregnancy and fetal development
+  - Common pregnancy symptoms and discomforts
+  - Nutrition and exercise during pregnancy
+  - Preparing for labor and delivery
+  - Postpartum recovery for the mother
+  - Newborn care basics (feeding, sleeping, bathing, soothing)
+  - Breastfeeding and formula feeding support
+  - Infant and toddler milestones
+  - Common childhood illnesses and when to seek medical attention
+  - Positive parenting techniques
 
-  IMPORTANT: You are an AI assistant, NOT a medical professional. Always include a clear disclaimer in your responses stating that your advice is not a substitute for professional medical consultation. Encourage users to consult a doctor or qualified healthcare provider for any personal health concerns or medical advice.
+  IMPORTANT: You are an AI assistant, NOT a substitute for a real healthcare professional (like a doctor, midwife, or pediatrician). Always include a clear disclaimer in your responses stating that your advice is general information and not a substitute for professional medical consultation. Encourage users to consult their doctor, midwife, pediatrician, or other qualified healthcare provider for any personal health concerns, diagnoses, or medical advice for themselves or their child. Never attempt to diagnose conditions or prescribe treatments.
 
   Respond to the following user message:
   User: {{{message}}}
@@ -54,12 +65,22 @@ const healthVisitorChatFlow = ai.defineFlow(
 
     // Ensure disclaimer is present (basic check, can be refined)
     const responseText = output?.response || "I'm sorry, I couldn't generate a response right now.";
-    const disclaimer = "Please remember, I'm an AI assistant and this information is not a substitute for professional medical advice. Consult your doctor for personal health concerns.";
+    const disclaimer = "Please remember, I'm an AI assistant and this information is for general guidance only. It is not a substitute for professional medical advice from your doctor, midwife, or pediatrician. Always consult a qualified healthcare provider for personal health concerns or decisions for you or your child.";
 
-    if (!responseText.includes("medical advice") && !responseText.includes("doctor")) {
+    // Check if the response *already* contains a reasonable disclaimer before adding another one
+    const lowerResponse = responseText.toLowerCase();
+    const hasDisclaimer = lowerResponse.includes("medical advice") ||
+                          lowerResponse.includes("healthcare provider") ||
+                          lowerResponse.includes("doctor") ||
+                          lowerResponse.includes("midwife") ||
+                          lowerResponse.includes("pediatrician") ||
+                          lowerResponse.includes("consult");
+
+    if (!hasDisclaimer) {
         return { response: `${responseText}\n\n${disclaimer}` };
     }
 
     return { response: responseText };
   }
 );
+
