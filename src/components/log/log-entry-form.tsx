@@ -26,6 +26,7 @@ import { Switch } from '@/components/ui/switch';
 import { Droplet, Zap, CloudRain, Wind, Smile, StickyNote, ShieldCheck, Ban, FlagOff, HeartPulse, SmilePlus, Minus, Plus } from 'lucide-react'; // Added icons
 import { useCycleData, LogData } from '@/context/CycleDataContext'; // Import context and LogData type
 import { useRouter } from 'next/navigation'; // Import useRouter
+import { cn } from '@/lib/utils'; // Import cn utility
 
 // Define symptom and mood options with icons
 const symptomOptions = [
@@ -276,54 +277,49 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
             <CardTitle className="text-lg">Symptoms</CardTitle>
           </CardHeader>
           <CardContent>
-             <FormField
+            <FormField
               control={form.control}
               name="symptoms"
-              render={() => (
+              render={({ field }) => (
                 <FormItem>
-                   <div className="grid grid-cols-3 gap-3"> {/* Slightly reduced gap */}
+                  <div className="grid grid-cols-3 gap-3"> {/* Slightly reduced gap */}
                     {symptomOptions.map((item) => {
                       const Icon = item.icon;
-                       return (
-                        <FormField
+                      const isChecked = field.value?.includes(item.id);
+                      return (
+                        <FormItem
                           key={item.id}
-                          control={form.control}
-                          name="symptoms"
-                          render={({ field }) => {
-                            const isChecked = field.value?.includes(item.id);
-                            return (
-                              <FormItem
-                                key={item.id}
-                                className="flex flex-col items-center space-y-1 border rounded-lg p-3 hover:bg-muted/50 transition-colors cursor-pointer data-[state=checked]:bg-accent/10 data-[state=checked]:border-accent data-[state=checked]:text-accent"
-                                data-state={isChecked ? "checked" : "unchecked"}
-                                onClick={() => {
-                                   const currentSymptoms = field.value || [];
-                                   if (isChecked) {
-                                        field.onChange(currentSymptoms.filter((value) => value !== item.id));
-                                   } else {
-                                        field.onChange([...currentSymptoms, item.id]);
-                                   }
-                                }}
-                              >
-                                <FormControl>
-                                   {/* Hidden checkbox for form state */}
-                                    <Checkbox
-                                        checked={isChecked}
-                                        // onCheckedChange is handled by the FormItem onClick
-                                        className="sr-only" // Hide the actual checkbox
-                                        tabIndex={-1} // Prevent tabbing to hidden checkbox
-                                        aria-hidden="true"
-                                    />
-                                </FormControl>
-                                <Icon className={`h-6 w-6 mb-1 ${isChecked ? 'text-accent' : 'text-muted-foreground'}`} />
-                                <FormLabel className="font-normal text-sm text-center cursor-pointer">
-                                  {item.label}
-                                </FormLabel>
-                              </FormItem>
-                            )
-                          }}
-                        />
-                      )
+                          className={cn(
+                            "flex flex-col items-center space-y-1 border rounded-lg p-3 hover:bg-muted/50 transition-colors cursor-pointer",
+                            isChecked && "bg-accent/10 border-accent text-accent"
+                          )}
+                          // No onClick needed here, handled by Checkbox
+                        >
+                          <FormControl>
+                            <Checkbox
+                              checked={isChecked}
+                              onCheckedChange={(checked) => {
+                                const currentSymptoms = field.value || [];
+                                if (checked) {
+                                  field.onChange([...currentSymptoms, item.id]);
+                                } else {
+                                  field.onChange(currentSymptoms.filter((value) => value !== item.id));
+                                }
+                              }}
+                              className="sr-only" // Keep checkbox hidden visually
+                              aria-labelledby={`symptom-label-${item.id}`}
+                            />
+                          </FormControl>
+                           <Icon className={cn("h-6 w-6 mb-1", isChecked ? "text-accent" : "text-muted-foreground")} />
+                          <FormLabel
+                            id={`symptom-label-${item.id}`}
+                            className="font-normal text-sm text-center cursor-pointer"
+                            // Use htmlFor with the Checkbox's implicit ID or a manually set one
+                          >
+                            {item.label}
+                          </FormLabel>
+                        </FormItem>
+                      );
                     })}
                   </div>
                   <FormMessage />
@@ -365,7 +361,7 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
                                         aria-label={item.label}
                                         className="flex flex-col items-center space-y-1 h-auto p-3 border rounded-lg data-[state=on]:bg-accent/10 data-[state=on]:border-accent data-[state=on]:text-accent"
                                     >
-                                        <Icon className={`h-6 w-6 mb-1 ${isSelected ? 'text-accent' : 'text-muted-foreground'}`} />
+                                        <Icon className={cn("h-6 w-6 mb-1", isSelected ? "text-accent" : "text-muted-foreground")} />
                                         <span className="font-normal text-sm text-center">{item.label}</span>
                                     </ToggleGroupItem>
                                 );
