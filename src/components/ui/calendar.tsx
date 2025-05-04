@@ -24,16 +24,15 @@ function Calendar({
       classNames={{
         months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
         month: "space-y-4",
-        caption: "flex justify-center items-center h-14 border-b relative px-4", // Reduced padding back to px-4
+        caption: "flex justify-center items-center h-14 border-b relative px-4", // Caption has px-4
         caption_label: "text-lg font-semibold flex-grow text-center", // Allow label to grow and center text
-        nav: "flex items-center absolute inset-y-0 w-full px-1 justify-between", // Use justify-between for spacing
+        nav: "flex items-center absolute inset-y-0 w-full px-4 justify-between", // Match caption padding (px-4) and use justify-between for spacing
         nav_button: cn(
           buttonVariants({ variant: "outline" }),
-          "h-9 w-9 bg-transparent p-0 text-muted-foreground hover:text-foreground hover:bg-muted" // Made buttons slightly larger and aligned with general button styles
-          // Removed absolute positioning here
+          "h-9 w-9 bg-transparent p-0 text-muted-foreground hover:text-foreground hover:bg-muted" // General button styles
         ),
-        nav_button_previous: 'order-1', // Positioned using order and flex justify-between
-        nav_button_next: 'order-3', // Positioned using order and flex justify-between
+        nav_button_previous: '', // Rely on flex justify-between, remove specific positioning/order
+        nav_button_next: '', // Rely on flex justify-between, remove specific positioning/order
         table: "w-full border-collapse space-y-1",
         head_row: "flex",
         head_cell:
@@ -68,11 +67,11 @@ function Calendar({
         ...classNames,
       }}
       components={{
-        IconLeft: ({ className, ...props }) => (
-          <ChevronLeft className={cn("h-5 w-5", className)} {...props} /> // Slightly larger icon
+        IconLeft: ({ ...props }) => (
+          <ChevronLeft className="h-5 w-5" {...props} /> // Ensure consistent icon size
         ),
-        IconRight: ({ className, ...props }) => (
-          <ChevronRight className={cn("h-5 w-5", className)} {...props} /> // Slightly larger icon
+        IconRight: ({ ...props }) => (
+          <ChevronRight className="h-5 w-5" {...props} /> // Ensure consistent icon size
         ),
       }}
       {...props}
