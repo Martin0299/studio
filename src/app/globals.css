@@ -20,28 +20,59 @@ body {
     --secondary-foreground: 180 10% 30%; /* Darker teal for text on secondary */
     --muted: 270 30% 95%; /* Light Lavender */
     --muted-foreground: 270 10% 45%; /* Darker lavender for muted text */
-    --accent: 16 100% 66%; /* Coral */
-    --accent-foreground: 0 0% 100%; /* White for text on accent */
+
+    /* Accent Colors - Define both options */
+    --accent-coral: 16 100% 66%; /* Coral */
+    --accent-gold: 45 100% 70%; /* Soft Gold */
+    --accent-coral-foreground: 0 0% 100%; /* White for text on Coral */
+    --accent-gold-foreground: 45 30% 15%; /* Dark Gold for text on Soft Gold */
+
+    /* Default Accent (Coral) */
+    --accent: var(--accent-coral);
+    --accent-foreground: var(--accent-coral-foreground);
+    --ring: var(--accent-coral); /* Default Ring (Coral) */
+    --chart-1: var(--accent-coral); /* Default Chart 1 (Coral) */
+    --chart-4: var(--accent-gold); /* Default Chart 4 (Gold) */
+
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
     --border: 0 0% 89.8%;
     --input: 0 0% 89.8%;
-    --ring: 16 100% 66%; /* Coral for focus rings */
-    --chart-1: 16 100% 66%; /* Coral */
     --chart-2: 180 40% 60%; /* Soft Teal */
     --chart-3: 270 40% 75%; /* Lavender */
-    --chart-4: 45 100% 70%; /* Soft Gold (Alternative Accent) */
     --chart-5: 340 50% 70%; /* Lighter Dusty Rose */
     --radius: 0.5rem;
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 16 100% 66%; /* Coral */
-    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-primary: var(--accent-coral); /* Default Sidebar Primary (Coral) */
+    --sidebar-primary-foreground: var(--accent-coral-foreground);
     --sidebar-accent: 180 30% 90%; /* Soft Teal Light */
     --sidebar-accent-foreground: 180 10% 30%;
     --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 16 100% 66%;
+    --sidebar-ring: var(--accent-coral); /* Default Sidebar Ring (Coral) */
   }
+
+  /* Apply Accent Color based on data attribute */
+  :root[data-accent="coral"] {
+    --accent: var(--accent-coral);
+    --accent-foreground: var(--accent-coral-foreground);
+    --ring: var(--accent-coral);
+    --chart-1: var(--accent-coral);
+    --sidebar-primary: var(--accent-coral);
+    --sidebar-primary-foreground: var(--accent-coral-foreground);
+    --sidebar-ring: var(--accent-coral);
+  }
+  :root[data-accent="gold"] {
+    --accent: var(--accent-gold);
+    --accent-foreground: var(--accent-gold-foreground);
+    --ring: var(--accent-gold);
+    --chart-1: var(--accent-gold);
+    --sidebar-primary: var(--accent-gold);
+    --sidebar-primary-foreground: var(--accent-gold-foreground);
+    --sidebar-ring: var(--accent-gold);
+  }
+
+
   .dark {
     --background: 240 10% 3.9%; /* Deep Charcoal/Navy */
     --foreground: 0 0% 98%; /* Off-white */
@@ -55,26 +86,55 @@ body {
     --secondary-foreground: 0 0% 98%;
     --muted: 270 15% 15%; /* Dark Lavender */
     --muted-foreground: 270 10% 65%;
-    --accent: 16 100% 70%; /* Brighter Coral for dark mode */
-    --accent-foreground: 240 10% 3.9%; /* Dark text on accent */
+
+    /* Dark Mode Accent Colors */
+    --accent-coral: 16 100% 70%; /* Brighter Coral for dark mode */
+    --accent-gold: 45 100% 75%; /* Brighter Soft Gold for dark mode */
+    --accent-coral-foreground: 240 10% 3.9%; /* Dark text on accent */
+    --accent-gold-foreground: 45 25% 10%; /* Darker Gold text for dark mode */
+
+    /* Default Dark Accent (Coral) */
+    --accent: var(--accent-coral);
+    --accent-foreground: var(--accent-coral-foreground);
+    --ring: var(--accent-coral);
+    --chart-1: var(--accent-coral);
+    --chart-4: var(--accent-gold);
+
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
     --border: 240 5% 15%;
     --input: 240 5% 15%;
-    --ring: 16 100% 70%; /* Brighter Coral */
-    --chart-1: 16 100% 70%; /* Brighter Coral */
     --chart-2: 180 40% 70%; /* Brighter Soft Teal */
     --chart-3: 270 40% 80%; /* Brighter Lavender */
-    --chart-4: 45 100% 75%; /* Brighter Soft Gold */
     --chart-5: 340 50% 75%; /* Brighter Light Dusty Rose */
     --sidebar-background: 240 10% 5.9%;
     --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 16 100% 70%; /* Brighter Coral */
-    --sidebar-primary-foreground: 240 10% 3.9%;
+    --sidebar-primary: var(--accent-coral); /* Default Dark Sidebar Primary (Coral) */
+    --sidebar-primary-foreground: var(--accent-coral-foreground);
     --sidebar-accent: 180 25% 25%; /* Dark Soft Teal */
     --sidebar-accent-foreground: 0 0% 98%;
     --sidebar-border: 240 5% 15%;
-    --sidebar-ring: 16 100% 70%;
+    --sidebar-ring: var(--accent-coral); /* Default Dark Sidebar Ring (Coral) */
+  }
+
+  /* Apply Dark Accent Color based on data attribute */
+  .dark[data-accent="coral"] {
+    --accent: var(--accent-coral);
+    --accent-foreground: var(--accent-coral-foreground);
+    --ring: var(--accent-coral);
+    --chart-1: var(--accent-coral);
+    --sidebar-primary: var(--accent-coral);
+    --sidebar-primary-foreground: var(--accent-coral-foreground);
+    --sidebar-ring: var(--accent-coral);
+  }
+  .dark[data-accent="gold"] {
+    --accent: var(--accent-gold);
+    --accent-foreground: var(--accent-gold-foreground);
+    --ring: var(--accent-gold);
+    --chart-1: var(--accent-gold);
+    --sidebar-primary: var(--accent-gold);
+    --sidebar-primary-foreground: var(--accent-gold-foreground);
+    --sidebar-ring: var(--accent-gold);
   }
 }
 

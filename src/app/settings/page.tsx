@@ -1,3 +1,4 @@
+// src/app/settings/page.tsx
 'use client'; // Required for interactions like toggles and buttons
 
 import * as React from 'react';
@@ -22,52 +23,179 @@ import { useToast } from "@/hooks/use-toast";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Palette, Lock, Bell, FileDown, Trash2, CircleHelp } from 'lucide-react'; // Icons
 import { useCycleData } from '@/context/CycleDataContext'; // Import context
+import { cn } from '@/lib/utils'; // Import cn
+
+// Define theme type
+type Theme = 'light' | 'dark' | 'system';
+type AccentColor = 'coral' | 'gold';
 
 export default function SettingsPage() {
     const { toast } = useToast();
-    const { deleteAllData } = useCycleData(); // Get delete function from context
+    const { deleteAllData, logData } = useCycleData(); // Get delete function and logData from context
     const [deleteConfirmInput, setDeleteConfirmInput] = React.useState(''); // State for delete confirmation input
 
-    // State for settings - TODO: load/save from a dedicated settings storage (e.g., localStorage)
-    const [avgCycleLength, setAvgCycleLength] = React.useState<number>(28);
-    const [avgPeriodLength, setAvgPeriodLength] = React.useState<number>(5);
+    // -- Appearance State --
+    // Use state that defaults to system/coral, but gets overridden by localStorage in useEffect
+    const [theme, setTheme] = React.useState<Theme>('system');
+    const [accentColor, setAccentColor] = React.useState<AccentColor>('coral');
+
+    // -- Cycle State (Derived from context) --
+    // Calculate averages here based on logData - reuse logic from Insights or create a helper
+    // Placeholder values for now
+    const [avgCycleLength, setAvgCycleLength] = React.useState<number | null>(null);
+    const [avgPeriodLength, setAvgPeriodLength] = React.useState<number | null>(null);
+
+    // TODO: State for reminders and security - load/save from a dedicated settings storage
     const [periodReminder, setPeriodReminder] = React.useState<boolean>(true);
     const [fertileReminder, setFertileReminder] = React.useState<boolean>(true);
     const [appLock, setAppLock] = React.useState<boolean>(false);
-    const [theme, setTheme] = React.useState<string>('system'); // 'light', 'dark', 'system' - TODO: Implement theme switching
-    const [accentColor, setAccentColor] = React.useState<string>('coral'); // 'coral', 'gold' - TODO: Implement accent color switching
 
 
-    // TODO: Load settings from a settings storage (separate from cycle logs) on component mount
-    // React.useEffect(() => { ... load settings ... }, []);
+    // --- Effects for Appearance ---
 
-    // TODO: Save settings to a settings storage on change
-    const handleSaveSettings = () => {
-        console.log("Saving settings:", { avgCycleLength, avgPeriodLength, periodReminder, fertileReminder, appLock, theme, accentColor });
-        // Save logic here (e.g., localStorage.setItem('appSettings', JSON.stringify({...})) )
-        toast({ title: "Settings Saved", description: "Your preferences have been updated." });
+    // Load Appearance settings from localStorage on mount
+    React.useEffect(() => {
+        const storedTheme = localStorage.getItem('theme') as Theme | null;
+        const storedAccent = localStorage.getItem('accentColor') as AccentColor | null;
+        if (storedTheme && ['light', 'dark', 'system'].includes(storedTheme)) {
+            setTheme(storedTheme);
+        }
+        if (storedAccent && ['coral', 'gold'].includes(storedAccent)) {
+            setAccentColor(storedAccent);
+        }
+    }, []);
+
+    // Apply theme class to HTML element
+    React.useEffect(() => {
+        const root = window.document.documentElement;
+        root.classList.remove('light', 'dark');
+
+        if (theme === 'system') {
+            const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+            root.classList.add(systemTheme);
+        } else {
+            root.classList.add(theme);
+        }
+    }, [theme]);
+
+     // Apply accent color data attribute to HTML element
+     React.useEffect(() => {
+        const root = window.document.documentElement;
+        root.setAttribute('data-accent', accentColor);
+    }, [accentColor]);
+
+
+    // --- Effect for Cycle Calculations ---
+     React.useEffect(() => {
+         // Basic calculation - ideally share logic with Insights page
+         const periodStartDates: Date[] = [];
+         const periodLengths: number[] = [];
+         const cycleLengths: number[] = [];
+
+         const sortedDates = Object.keys(logData)
+             .filter(dateString => { try { return !!parseISO(dateString); } catch { return false; } })
+             .sort((a, b) => parseISO(a).getTime() - parseISO(b).getTime());
+
+          sortedDates.forEach((dateString, index) => {
+              const entry = logData[dateString];
+              if (!entry || !entry.date) return;
+
+              const isPeriodDay = entry?.periodFlow && entry.periodFlow !== 'none';
+              const date = parseISO(entry.date);
+
+              const prevDay = subDays(date, 1);
+              const prevDayString = format(prevDay, 'yyyy-MM-dd');
+              const prevLog = logData[prevDayString];
+              const isPeriodStart = isPeriodDay && (!prevLog || !prevLog.periodFlow || prevLog.periodFlow === 'none');
+
+              if (isPeriodStart) {
+                 periodStartDates.push(date);
+                 if (periodStartDates.length > 1) {
+                     const previousStartDate = periodStartDates[periodStartDates.length - 2];
+                     const cycleLength = differenceInDays(date, previousStartDate);
+                      if (cycleLength > 10 && cycleLength < 100) {
+                         cycleLengths.push(cycleLength);
+                     }
+                 }
+
+                  // Calculate length for the period starting now
+                  let currentPeriodLength = 1;
+                  let lookAheadDate = addDays(date, 1);
+                  let lookAheadString = format(lookAheadDate, 'yyyy-MM-dd');
+                  while(logData[lookAheadString]?.periodFlow && logData[lookAheadString]?.periodFlow !== 'none') {
+                    currentPeriodLength++;
+                    if (logData[lookAheadString]?.isPeriodEnd) break; // Stop if end marker found
+                    lookAheadDate = addDays(lookAheadDate, 1);
+                    lookAheadString = format(lookAheadDate, 'yyyy-MM-dd');
+                  }
+                  // Alternative: find explicit end marker if exists
+                  let endDate: Date | null = null;
+                  for (let d = index; d < sortedDates.length; d++) {
+                       const currentDateString = sortedDates[d];
+                       const currentDate = parseISO(currentDateString);
+                       if (!isAfter(currentDate, date) && !isEqual(currentDate, date)) continue; // Skip past dates
+
+                       const currentEntry = logData[currentDateString];
+                        if (currentEntry?.isPeriodEnd) {
+                             endDate = currentDate;
+                             break;
+                        }
+                        // If no explicit end marker, the last flow day determines length (handled by while loop above implicitly if no end marker)
+                  }
+
+                  if (endDate) {
+                      const length = differenceInDays(endDate, date) + 1;
+                      if (length > 0 && length < 20) periodLengths.push(length);
+                  } else if (currentPeriodLength > 0 && currentPeriodLength < 20) {
+                      // Use length from consecutive flow days if no end marker found
+                       periodLengths.push(currentPeriodLength);
+                  }
+
+             }
+         });
+
+         setAvgCycleLength(cycleLengths.length > 0 ? Math.round(cycleLengths.reduce((a, b) => a + b, 0) / cycleLengths.length) : null);
+         setAvgPeriodLength(periodLengths.length > 0 ? Math.round(periodLengths.reduce((a, b) => a + b, 0) / periodLengths.length) : null);
+
+     }, [logData]); // Recalculate when logData changes
+
+    // --- Handlers ---
+
+    const handleThemeChange = (newTheme: string) => {
+        const validTheme = newTheme as Theme;
+        setTheme(validTheme);
+        localStorage.setItem('theme', validTheme);
+        toast({ title: "Theme Updated", description: `Theme set to ${validTheme}.` });
     };
 
+    const handleAccentChange = (newAccent: string) => {
+        const validAccent = newAccent as AccentColor;
+        setAccentColor(validAccent);
+        localStorage.setItem('accentColor', validAccent);
+        toast({ title: "Accent Color Updated", description: `Accent set to ${validAccent}.` });
+    };
+
+
     const handleBackup = () => {
-        // TODO: Implement backup logic (create encrypted JSON/CSV of localStorage data)
         console.log("Backup initiated");
         toast({ title: "Backup Not Implemented", description: "Data backup feature is coming soon.", variant: "destructive" });
     };
 
     const handleExport = () => {
-        // TODO: Implement export logic (CSV/PDF via share sheet)
         console.log("Export initiated");
         toast({ title: "Export Not Implemented", description: "Data export feature is coming soon.", variant: "destructive" });
     };
 
     const handleDeleteAllDataConfirmed = () => {
-        deleteAllData(); // Call context function to delete data from storage
+        deleteAllData();
         toast({ variant: "destructive", title: "Data Deleted", description: "All your cycle data has been permanently removed." });
-        setDeleteConfirmInput(''); // Reset input
-        // Potentially reset other app state or navigate away if needed
+        setDeleteConfirmInput('');
     };
 
     const isDeleteDisabled = deleteConfirmInput !== 'DELETE';
+
+    // Import date-fns functions used in useEffect
+    const { parseISO, format, subDays, addDays, differenceInDays, isAfter, isEqual } = require('date-fns');
 
 
     return (
@@ -77,32 +205,30 @@ export default function SettingsPage() {
             {/* Cycle Settings */}
             <Card>
                 <CardHeader>
-                    <CardTitle className="text-lg">Cycle Settings (Informational)</CardTitle>
-                    <CardDescription>These averages are now calculated automatically in Insights. Manual override coming soon.</CardDescription>
+                    <CardTitle className="text-lg">Cycle Settings (Calculated)</CardTitle>
+                    <CardDescription>Averages based on your logged data. Manual override coming soon.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="grid grid-cols-2 gap-4 items-center">
-                        <Label htmlFor="cycle-length">Average Cycle Length (days)</Label>
-                        {/* Display calculated average or placeholder */}
+                        <Label htmlFor="cycle-length">Average Cycle Length</Label>
                         <Input
                             id="cycle-length"
-                            type="number"
-                            value={avgCycleLength} // TODO: Replace with calculated value from context/insights
-                            readOnly // Make read-only for now
-                            className="w-full bg-muted cursor-not-allowed"
+                            type="text" // Use text to display 'N/A' or number
+                            value={avgCycleLength !== null ? `${avgCycleLength} days` : 'N/A'}
+                            readOnly
+                            className="w-full bg-muted cursor-not-allowed text-right"
                         />
                     </div>
                      <div className="grid grid-cols-2 gap-4 items-center">
-                        <Label htmlFor="period-length">Average Period Length (days)</Label>
+                        <Label htmlFor="period-length">Average Period Length</Label>
                          <Input
                             id="period-length"
-                            type="number"
-                            value={avgPeriodLength} // TODO: Replace with calculated value
+                            type="text"
+                            value={avgPeriodLength !== null ? `${avgPeriodLength} days` : 'N/A'}
                             readOnly
-                            className="w-full bg-muted cursor-not-allowed"
+                            className="w-full bg-muted cursor-not-allowed text-right"
                         />
                     </div>
-                    {/* TODO: Add option to exclude cycles */}
                 </CardContent>
             </Card>
 
@@ -113,6 +239,7 @@ export default function SettingsPage() {
                     <CardDescription>Manage your notifications (feature coming soon).</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                    {/* Still disabled */}
                     <div className="flex items-center justify-between opacity-50 cursor-not-allowed">
                         <Label htmlFor="period-reminder" className="flex-1">Period Start Prediction</Label>
                         <Switch
@@ -131,48 +258,45 @@ export default function SettingsPage() {
                             disabled
                         />
                     </div>
-                    {/* TODO: Add more reminder options (Ovulation, Medication, etc.) */}
-                    {/* TODO: Add time customization */}
                 </CardContent>
             </Card>
 
-             {/* Appearance */}
+             {/* Appearance - Enabled */}
             <Card>
                 <CardHeader>
                     <CardTitle className="text-lg flex items-center"><Palette className="mr-2 h-5 w-5"/>Appearance</CardTitle>
-                     <CardDescription>Customize the look and feel (feature coming soon).</CardDescription>
+                     <CardDescription>Customize the look and feel of the app.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-6 opacity-50 cursor-not-allowed">
+                <CardContent className="space-y-6"> {/* Removed opacity/disabled */}
                      <div>
                          <Label className="mb-2 block">Theme</Label>
-                         <RadioGroup defaultValue={theme} onValueChange={setTheme} className="flex space-x-4" disabled>
+                         <RadioGroup value={theme} onValueChange={handleThemeChange} className="flex space-x-4">
                             <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="light" id="theme-light" disabled/>
+                                <RadioGroupItem value="light" id="theme-light" />
                                 <Label htmlFor="theme-light">Light</Label>
                             </div>
                             <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="dark" id="theme-dark" disabled/>
+                                <RadioGroupItem value="dark" id="theme-dark" />
                                 <Label htmlFor="theme-dark">Dark</Label>
                             </div>
                              <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="system" id="theme-system" disabled/>
+                                <RadioGroupItem value="system" id="theme-system" />
                                 <Label htmlFor="theme-system">System</Label>
                             </div>
                          </RadioGroup>
                      </div>
                       <div>
                          <Label className="mb-2 block">Accent Color</Label>
-                         {/* Basic example - ideally use actual color swatches */}
-                         <RadioGroup defaultValue={accentColor} onValueChange={setAccentColor} className="flex space-x-4" disabled>
+                         <RadioGroup value={accentColor} onValueChange={handleAccentChange} className="flex space-x-4">
                             <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="coral" id="accent-coral" disabled/>
-                                <Label htmlFor="accent-coral" style={{color: 'hsl(var(--accent))'}}>Coral</Label> {/* Use theme color */}
+                                <RadioGroupItem value="coral" id="accent-coral" />
+                                {/* Apply inline style for preview, but actual color comes from CSS variables */}
+                                <Label htmlFor="accent-coral" style={{ color: 'hsl(16 100% 66%)' }}>Coral</Label>
                             </div>
-                            {/* <div className="flex items-center space-x-2">
-                                <RadioGroupItem value="gold" id="accent-gold" disabled/>
-                                <Label htmlFor="accent-gold" style={{color: '#FFD700'}}>Gold</Label>
-                            </div> */}
-                             {/* Add more accent options later */}
+                             <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="gold" id="accent-gold" />
+                                <Label htmlFor="accent-gold" style={{ color: 'hsl(45 100% 70%)' }}>Gold</Label>
+                            </div>
                          </RadioGroup>
                     </div>
                 </CardContent>
@@ -194,7 +318,6 @@ export default function SettingsPage() {
                             disabled
                         />
                     </div>
-                    {/* TODO: Add button to set/change PIN if appLock is enabled */}
                      {appLock && <Button variant="outline" className="w-full" disabled>Set/Change PIN</Button>}
                 </CardContent>
             </Card>
@@ -260,20 +383,14 @@ export default function SettingsPage() {
                     <CardTitle className="text-lg flex items-center"><CircleHelp className="mr-2 h-5 w-5"/>Help &amp; About</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                    {/* TODO: Link these buttons to actual pages or modals */}
                     <Button variant="link" className="p-0 h-auto justify-start" disabled>FAQ (Soon)</Button><br />
                     <Button variant="link" className="p-0 h-auto justify-start" disabled>Contact Support (Soon)</Button><br />
                     <Button variant="link" className="p-0 h-auto justify-start" disabled>Privacy Policy (Soon)</Button><br />
-                    <p className="text-xs text-muted-foreground pt-2">App Version: 1.0.0</p>
+                    <p className="text-xs text-muted-foreground pt-2">App Version: 1.0.1</p> {/* Updated version */}
                  </CardContent>
             </Card>
 
-             {/* Remove Save All Settings button for now as settings aren't editable */}
-             {/*
-             <Button onClick={handleSaveSettings} className="w-full bg-accent hover:bg-accent/90 text-accent-foreground mt-8">
-                 Save All Settings
-            </Button>
-             */}
+             {/* No overall save button needed as settings are applied instantly */}
         </div>
     );
 }
