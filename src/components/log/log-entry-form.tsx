@@ -125,12 +125,12 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
     const activityOccurred = (logDataToSave.sexualActivityCount ?? 0) > 0;
 
     // Ensure protectionUsed and orgasm are only saved if activity occurred
-    // Ensure isPeriodEnd is false if periodFlow is 'none' - CRITICAL for saving logic
+    // Allow saving isPeriodEnd=true even if periodFlow is 'none'
     const finalLogData: Omit<LogData, 'date'> = {
         ...logDataToSave,
         protectionUsed: activityOccurred ? logDataToSave.protectionUsed ?? false : undefined,
         orgasm: activityOccurred ? logDataToSave.orgasm ?? false : undefined,
-        isPeriodEnd: logDataToSave.periodFlow !== 'none' ? logDataToSave.isPeriodEnd : false, // Reset if flow is none on save
+        isPeriodEnd: logDataToSave.isPeriodEnd, // Save the value directly from the form
         sexualActivityCount: Math.max(0, logDataToSave.sexualActivityCount ?? 0),
     };
 
@@ -251,14 +251,14 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
                         </FormLabel>
                         <FormMessage className="text-xs" />
                          <FormDescription className="text-xs">
-                            If checked with 'None' flow, flow will be set to 'Light'.
+                            Marks this day as the end of your period flow.
                          </FormDescription>
                     </div>
                     <FormControl>
                         <Switch
                             checked={field.value}
                             onCheckedChange={field.onChange}
-                            // Removed disabled prop to allow clicking even with 'none' flow
+                            // No longer explicitly disabled based on flow
                             aria-label="Mark as Last Day of Period"
                         />
                     </FormControl>

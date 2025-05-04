@@ -37,11 +37,6 @@ function getKeyForDate(date: Date): string {
 export function saveLogEntry(date: Date, data: Omit<LogData, 'date'>): void {
   try {
     const key = getKeyForDate(date);
-    // If setting isPeriodEnd to true, ensure periodFlow is not 'none'
-    const isEndingPeriod = data.isPeriodEnd === true;
-    const periodFlow = data.periodFlow && data.periodFlow !== 'none'
-        ? data.periodFlow
-        : (isEndingPeriod ? getLogEntry(date)?.periodFlow ?? 'light' : 'none'); // If ending, keep existing or default to light, otherwise 'none'
 
     // Determine if sexual activity occurred based on count
     const activityOccurred = (data.sexualActivityCount ?? 0) > 0;
@@ -49,9 +44,9 @@ export function saveLogEntry(date: Date, data: Omit<LogData, 'date'>): void {
     const entryToSave: LogData = {
         ...data,
         date: format(date, 'yyyy-MM-dd'), // Ensure date string is stored
-        periodFlow: periodFlow,
-        // Ensure isPeriodEnd is false or undefined if flow is 'none'
-        isPeriodEnd: periodFlow !== 'none' ? data.isPeriodEnd : false,
+        periodFlow: data.periodFlow ?? 'none', // Default to 'none' if undefined
+        // Save the isPeriodEnd value directly from the form data
+        isPeriodEnd: data.isPeriodEnd,
         // Only store protectionUsed and orgasm if activity occurred
         protectionUsed: activityOccurred ? data.protectionUsed : undefined,
         orgasm: activityOccurred ? data.orgasm : undefined,
@@ -60,9 +55,9 @@ export function saveLogEntry(date: Date, data: Omit<LogData, 'date'>): void {
     };
 
     // Don't save empty entries (only date) unless it's explicitly clearing previous data
-    const hasMeaningfulData = Object.values(entryToSave).some((value, index) => {
+    const hasMeaningfulData = Object.entries(entryToSave).some(([key, value]) => {
         // Ignore the 'date' field itself for this check
-        return index > 0 && value !== undefined && value !== '' && (!Array.isArray(value) || value.length > 0) && value !== false && value !== 0;
+        return key !== 'date' && value !== undefined && value !== '' && (!Array.isArray(value) || value.length > 0) && value !== false && value !== 0;
     });
 
     const existingEntry = localStorage.getItem(key);
