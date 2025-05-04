@@ -14,14 +14,16 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription // Import FormDescription
 } from '@/components/ui/form';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Textarea } from '@/components/ui/textarea';
+import { Input } from '@/components/ui/input'; // Import Input
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Switch } from '@/components/ui/switch';
-import { Droplet, Zap, CloudRain, Wind, Smile, StickyNote, ShieldCheck, Ban, FlagOff } from 'lucide-react'; // Added FlagOff
+import { Droplet, Zap, CloudRain, Wind, Smile, StickyNote, ShieldCheck, Ban, FlagOff, HeartPulse, SmilePlus, Minus, Plus } from 'lucide-react'; // Added icons
 import { useCycleData, LogData } from '@/context/CycleDataContext'; // Import context and LogData type
 import { useRouter } from 'next/navigation'; // Import useRouter
 
@@ -55,11 +57,12 @@ const logEntrySchema = z.object({
   isPeriodEnd: z.boolean().default(false), // Added period end field
   symptoms: z.array(z.string()).default([]),
   mood: z.string().optional().default(undefined), // Ensure optional fields default to undefined for consistency
-  sexualActivity: z.boolean().default(false),
+  sexualActivityCount: z.number().min(0).optional().default(0), // Use number for count
   protectionUsed: z.boolean().optional().default(undefined), // Make optional, handled conditionally
+  orgasm: z.boolean().optional().default(undefined), // Whether orgasm occurred
   notes: z.string().optional().default(''),
-}).refine(data => data.sexualActivity ? data.protectionUsed !== undefined : true, {
-    message: "Please specify if protection was used during sexual activity.", // Example validation
+}).refine(data => (data.sexualActivityCount ?? 0) > 0 ? data.protectionUsed !== undefined : true, {
+    message: "Please specify if protection was used.",
     path: ["protectionUsed"], // Path of the error
 }).refine(data => !(data.isPeriodEnd && data.periodFlow === 'none'), {
     message: "Cannot mark end of period without selecting a flow intensity.",
@@ -89,9 +92,10 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
       isPeriodEnd: existingLog?.isPeriodEnd ?? false, // Initialize period end
       symptoms: existingLog?.symptoms ?? [],
       mood: existingLog?.mood ?? undefined,
-      sexualActivity: existingLog?.sexualActivity ?? false,
-      // Conditionally set protectionUsed default ONLY if sexualActivity was true
-      protectionUsed: existingLog?.sexualActivity ? (existingLog?.protectionUsed ?? false) : undefined,
+      sexualActivityCount: existingLog?.sexualActivityCount ?? 0,
+      // Conditionally set protectionUsed/orgasm default ONLY if activity occurred
+      protectionUsed: (existingLog?.sexualActivityCount ?? 0) > 0 ? (existingLog?.protectionUsed ?? false) : undefined,
+      orgasm: (existingLog?.sexualActivityCount ?? 0) > 0 ? (existingLog?.orgasm ?? false) : undefined,
       notes: existingLog?.notes ?? '',
     },
     mode: 'onChange', // Validate on change
@@ -100,14 +104,16 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
  React.useEffect(() => {
     // Reset form with new date and potentially fetched data if selectedDate prop changes
     const logForDate = getLogForDate(selectedDate);
+    const activityCount = logForDate?.sexualActivityCount ?? 0;
     form.reset({
       date: selectedDate,
       periodFlow: logForDate?.periodFlow ?? 'none',
       isPeriodEnd: logForDate?.isPeriodEnd ?? false, // Reset period end
       symptoms: logForDate?.symptoms ?? [],
       mood: logForDate?.mood ?? undefined,
-      sexualActivity: logForDate?.sexualActivity ?? false,
-      protectionUsed: logForDate?.sexualActivity ? (logForDate?.protectionUsed ?? false) : undefined,
+      sexualActivityCount: activityCount,
+      protectionUsed: activityCount > 0 ? (logForDate?.protectionUsed ?? false) : undefined,
+      orgasm: activityCount > 0 ? (logForDate?.orgasm ?? false) : undefined,
       notes: logForDate?.notes ?? '',
     });
   }, [selectedDate, getLogForDate, form]); // Re-run when selectedDate changes or getLogForDate (from context) updates
@@ -116,13 +122,16 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
   function onSubmit(data: LogEntryFormValues) {
     // Extract data excluding the 'date' object (we use selectedDate)
     const { date, ...logDataToSave } = data;
+    const activityOccurred = (logDataToSave.sexualActivityCount ?? 0) > 0;
 
-     // Ensure protectionUsed is only saved if sexualActivity is true
-     // Ensure isPeriodEnd is false if periodFlow is 'none'
+    // Ensure protectionUsed and orgasm are only saved if activity occurred
+    // Ensure isPeriodEnd is false if periodFlow is 'none'
     const finalLogData: Omit<LogData, 'date'> = {
         ...logDataToSave,
-        protectionUsed: logDataToSave.sexualActivity ? logDataToSave.protectionUsed ?? false : undefined,
+        protectionUsed: activityOccurred ? logDataToSave.protectionUsed ?? false : undefined,
+        orgasm: activityOccurred ? logDataToSave.orgasm ?? false : undefined,
         isPeriodEnd: logDataToSave.periodFlow !== 'none' ? logDataToSave.isPeriodEnd : false,
+        sexualActivityCount: Math.max(0, logDataToSave.sexualActivityCount ?? 0),
     };
 
 
@@ -135,21 +144,29 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
     router.push('/calendar');
   }
 
-  // Watch sexualActivity field to conditionally render protectionUsed
-  const watchSexualActivity = form.watch('sexualActivity');
+  // Watch sexualActivityCount field to conditionally render protectionUsed/orgasm
+  const watchSexualActivityCount = form.watch('sexualActivityCount');
   const watchPeriodFlow = form.watch('periodFlow');
   const watchIsPeriodEnd = form.watch('isPeriodEnd');
 
-
+  // Effect to manage conditional fields based on activity count
   React.useEffect(() => {
-      // If sexual activity is toggled off, reset protectionUsed field
-      if (!watchSexualActivity) {
+      const activityOccurred = (watchSexualActivityCount ?? 0) > 0;
+      if (!activityOccurred) {
+          // If count is 0, reset protectionUsed and orgasm
           form.setValue('protectionUsed', undefined, { shouldValidate: true });
-      } else if (watchSexualActivity && form.getValues('protectionUsed') === undefined){
-           // If toggled on and it was undefined, set to default false
-           form.setValue('protectionUsed', false, { shouldValidate: true });
+          form.setValue('orgasm', undefined, { shouldValidate: true });
+      } else {
+          // If count > 0 and fields were undefined, set to default false
+           if (form.getValues('protectionUsed') === undefined) {
+               form.setValue('protectionUsed', false, { shouldValidate: true });
+           }
+           if (form.getValues('orgasm') === undefined) {
+                form.setValue('orgasm', false, { shouldValidate: true });
+           }
       }
-  }, [watchSexualActivity, form]);
+  }, [watchSexualActivityCount, form]);
+
 
     // If period flow is set to 'none', ensure 'isPeriodEnd' is false
     React.useEffect(() => {
@@ -365,30 +382,54 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
          {/* Sexual Activity Card */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Sexual Activity</CardTitle>
+            <CardTitle className="text-lg flex items-center"><HeartPulse className="mr-2 h-5 w-5 text-red-500" />Sexual Activity</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
              <FormField
                 control={form.control}
-                name="sexualActivity"
+                name="sexualActivityCount"
                 render={({ field }) => (
-                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                    <div className="space-y-0.5">
-                      <FormLabel className="text-base">
-                        Intercourse / Activity Logged
-                      </FormLabel>
+                  <FormItem className="rounded-lg border p-4">
+                    <div className="flex items-center justify-between">
+                        <FormLabel className="text-base">
+                            Times / Count
+                        </FormLabel>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => field.onChange(Math.max(0, (field.value ?? 0) - 1))}
+                                disabled={field.value === 0}
+                            >
+                                <Minus className="h-4 w-4" />
+                            </Button>
+                            <span className="text-lg font-medium w-8 text-center">
+                                {field.value}
+                            </span>
+                             <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                className="h-8 w-8"
+                                onClick={() => field.onChange((field.value ?? 0) + 1)}
+                            >
+                                <Plus className="h-4 w-4" />
+                            </Button>
+                        </div>
                     </div>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
-                    </FormControl>
+                     <FormDescription className="text-xs pt-2">
+                        Log the number of times sexual activity occurred today.
+                    </FormDescription>
+                    <FormMessage className="text-xs" />
                   </FormItem>
                 )}
               />
-              {/* Conditionally render protectionUsed based on watched value */}
-              {watchSexualActivity && (
+
+              {/* Conditionally render protectionUsed and orgasm based on count */}
+              {(watchSexualActivityCount ?? 0) > 0 && (
+                 <>
                  <FormField
                     control={form.control}
                     name="protectionUsed"
@@ -410,6 +451,28 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
                     </FormItem>
                     )}
                 />
+                <FormField
+                    control={form.control}
+                    name="orgasm"
+                    render={({ field }) => (
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-0.5">
+                            <FormLabel className="text-base flex items-center">
+                                <SmilePlus className="mr-2 h-5 w-5 text-pink-500"/> Orgasm Reached
+                            </FormLabel>
+                            <FormMessage className="text-xs" />
+                        </div>
+                        <FormControl>
+                        <Switch
+                            checked={field.value ?? false} // Handle potential undefined state
+                            onCheckedChange={field.onChange}
+                            aria-label="Orgasm Reached"
+                        />
+                        </FormControl>
+                    </FormItem>
+                    )}
+                />
+                </>
               )}
           </CardContent>
         </Card>
@@ -451,3 +514,4 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
     </Form>
   );
 }
+```

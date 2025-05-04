@@ -1,3 +1,4 @@
+// src/context/CycleDataContext.tsx
 'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
@@ -91,12 +92,9 @@ export function CycleDataProvider({ children }: CycleDataProviderProps) {
   }, [loadInitialData]);
 
   const addOrUpdateLog = useCallback((date: Date, data: Omit<LogData, 'date'>) => {
-    const dateString = format(date, 'yyyy-MM-dd');
-    const newEntry: LogData = { ...data, date: dateString };
     saveLogEntry(date, data); // Save to localStorage (this will trigger the event listener)
-    // Optimistic UI update (optional, as event listener also updates)
-    // setLogData(prev => ({ ...prev, [dateString]: newEntry }));
-  }, []);
+    // Optimistic UI update is handled by the event listener triggering loadInitialData
+  }, [loadInitialData]); // Add loadInitialData as dependency? No, save triggers event.
 
   const getLogForDate = useCallback((date: Date): LogData | null => {
     const dateString = format(date, 'yyyy-MM-dd');
@@ -124,8 +122,8 @@ export function CycleDataProvider({ children }: CycleDataProviderProps) {
 
   const deleteAllData = useCallback(() => {
     storageDeleteAll(); // Deletes from localStorage (triggers event)
-    // setLogData({}); // Optimistic UI update (or rely on event listener)
-  }, []);
+    // Optimistic UI update is handled by the event listener triggering loadInitialData
+  }, []); // No dependencies needed
 
 
   const value: CycleDataContextType = {
@@ -152,3 +150,4 @@ export function useCycleData() {
   }
   return context;
 }
+```

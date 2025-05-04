@@ -9,10 +9,10 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Button, buttonVariants } from '@/components/ui/button'; // Import buttonVariants
-import { format, parseISO, startOfDay, isBefore, isAfter, isEqual, addDays, subDays } from 'date-fns';
+import { Button } from '@/components/ui/button';
+import { format, parseISO, startOfDay, isBefore, isAfter, isEqual, addDays, subDays, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 import Link from 'next/link';
-import { Droplet, Sparkles, HeartPulse, Smile, CloudRain, Zap, StickyNote, CircleDot, Info, CheckCircle, Wind, FlagOff } from 'lucide-react'; // Added FlagOff
+import { Droplet, Sparkles, HeartPulse, Smile, CloudRain, Zap, StickyNote, Info, CheckCircle, Wind, FlagOff, SmilePlus, ShieldCheck, Ban, Minus, Plus } from 'lucide-react'; // Added relevant icons, Ban
 import { useCycleData, LogData } from '@/context/CycleDataContext'; // Import context and LogData type
 import { cn } from '@/lib/utils'; // Import cn utility
 import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
@@ -29,6 +29,7 @@ interface DayInfo {
   isFertile?: boolean;
   isOvulation?: boolean;
   loggedData?: LogData;
+  hasSexualActivity?: boolean; // Indicator for activity on the day
 }
 
 // Enhanced prediction and period range calculation
@@ -38,6 +39,7 @@ const calculateDayInfo = (date: Date, logs: Record<string, LogData>, allSortedPe
 
   const isLoggedPeriod = loggedData?.periodFlow && loggedData.periodFlow !== 'none';
   const isLoggedEnd = loggedData?.isPeriodEnd === true;
+  const hasActivity = (loggedData?.sexualActivityCount ?? 0) > 0;
 
   const dayInfo: DayInfo = {
     date,
@@ -45,6 +47,7 @@ const calculateDayInfo = (date: Date, logs: Record<string, LogData>, allSortedPe
     isPeriod: isLoggedPeriod,
     periodIntensity: loggedData?.periodFlow && loggedData.periodFlow !== 'none' ? loggedData?.periodFlow : undefined,
     isPeriodEnd: isLoggedEnd,
+    hasSexualActivity: hasActivity,
   };
 
   // --- Period Range Calculation ---
@@ -61,6 +64,7 @@ const calculateDayInfo = (date: Date, logs: Record<string, LogData>, allSortedPe
     let periodEndDate: Date | null = null;
     const logsArray = Object.values(logs).sort((a,b) => parseISO(a.date).getTime() - parseISO(b.date).getTime());
     for (const log of logsArray) {
+        if (!log.date) continue; // Skip if date is missing (safety check)
         const logDate = parseISO(log.date);
         if (!isBefore(logDate, lastPeriodStartDate) && log.isPeriodEnd) {
             periodEndDate = logDate;
@@ -87,6 +91,7 @@ const calculateDayInfo = (date: Date, logs: Record<string, LogData>, allSortedPe
 
   // --- Simplified Prediction Placeholder ---
   // Predictions need historical data and average lengths - this is very basic
+  // TODO: Replace with actual calculation from insights data
   const MOCK_CYCLE_LENGTH = 28;
   const MOCK_PERIOD_LENGTH = 5;
 
@@ -96,14 +101,17 @@ const calculateDayInfo = (date: Date, logs: Record<string, LogData>, allSortedPe
 
     if (daysSinceStart >= 0) { // Only predict for future/current cycles relative to the last known start
         // Fertile window prediction (e.g., days 10-16 of cycle)
+        // TODO: Use calculated fertile window from insights
         if (daysSinceStart >= 10 && daysSinceStart <= 16) {
           dayInfo.isFertile = true;
         }
         // Ovulation prediction (e.g., day 14)
+        // TODO: Use calculated ovulation day from insights
         if (daysSinceStart === 14) {
           dayInfo.isOvulation = true;
         }
         // Predict next period start roughly
+        // TODO: Use calculated prediction from insights
         const predictedNextStart = addDays(latestStartDate, MOCK_CYCLE_LENGTH);
         const daysUntilPredicted = Math.floor((predictedNextStart.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
         // Predict for a few days including the predicted start day itself
@@ -119,7 +127,7 @@ const calculateDayInfo = (date: Date, logs: Record<string, LogData>, allSortedPe
 
 
 export default function CalendarView() {
-  const { logData, isLoading, refreshData } = useCycleData();
+  const { logData, isLoading } = useCycleData(); // Removed refreshData, handled by context event listeners
   const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(startOfDay(new Date())); // Ensure normalized default
   const [currentMonth, setCurrentMonth] = React.useState<Date>(startOfDay(new Date()));
   const [monthDayInfo, setMonthDayInfo] = React.useState<Record<string, DayInfo>>({});
@@ -131,12 +139,13 @@ export default function CalendarView() {
           .filter(log => log.periodFlow && log.periodFlow !== 'none')
           // Heuristic to identify start dates: Check if the previous day wasn't a period day or doesn't exist
           .filter(log => {
+              if (!log.date) return false; // Safety check
               const prevDay = subDays(parseISO(log.date), 1);
               const prevDayString = format(prevDay, 'yyyy-MM-dd');
               const prevLog = logData[prevDayString];
               return !prevLog || !prevLog.periodFlow || prevLog.periodFlow === 'none';
           })
-          .map(log => parseISO(log.date))
+          .map(log => parseISO(log.date!)) // Use non-null assertion after filter
           .sort((a, b) => a.getTime() - b.getTime());
   }, [logData]);
 
@@ -144,13 +153,11 @@ export default function CalendarView() {
   React.useEffect(() => {
     if (!isLoading) {
       const newMonthDayInfo: Record<string, DayInfo> = {};
-      const tempDate = startOfMonth(currentMonth);
-      const end = endOfMonth(currentMonth);
-
       // Iterate through days potentially visible (previous, current, next month)
       // For simplicity, recalculate for the current month display logic uses `displayMonth`
        const monthStart = startOfMonth(currentMonth);
        const monthEnd = endOfMonth(currentMonth);
+       // Include padding days for accurate range styling across month boundaries if needed, but DayPicker handles showing outside days
        const displayDays = eachDayOfInterval({start: monthStart, end: monthEnd});
 
        // Calculate info for all days in the current month
@@ -164,32 +171,29 @@ export default function CalendarView() {
     }
   }, [currentMonth, logData, isLoading, allSortedPeriodStartDates]);
 
-  React.useEffect(() => {
-    refreshData();
-  }, [refreshData]);
 
-  const handleDayClick = (day: Date | undefined, modifiers: any, e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleDayClick = (day: Date | undefined, modifiers: any, e: React.MouseEvent<HTMLDivElement>) => {
     if (!day) return;
     const normalizedDay = startOfDay(day);
     setSelectedDate(normalizedDay);
-    setPopoverOpen(true);
+    setPopoverOpen(true); // Open popover on day click
   };
 
   const renderDayContent = (date: Date, displayMonth: Date): React.ReactNode => {
     const normalizedDay = startOfDay(date);
     const dateString = format(normalizedDay, 'yyyy-MM-dd');
-    // Ensure we only process days within the current display month from the state
-    if (normalizedDay.getMonth() !== displayMonth.getMonth()) {
-       return <div className="h-10 w-10 flex items-center justify-center text-muted-foreground/30 opacity-50">{format(date, 'd')}</div>;
-    }
+    const isOutside = normalizedDay.getMonth() !== displayMonth.getMonth();
 
     const dayInfo = monthDayInfo[dateString];
 
     if (isLoading) {
          return <Skeleton className="h-10 w-10 rounded-full" />;
     }
+     if (isOutside) {
+       return <div className="h-10 w-10 flex items-center justify-center text-muted-foreground/30 opacity-50">{format(date, 'd')}</div>;
+    }
     if (!dayInfo) {
-        // Render a basic day if info hasn't been calculated yet (should be rare)
+        // Render a basic day if info hasn't been calculated yet
         return <div className="h-10 w-10 flex items-center justify-center">{format(date, 'd')}</div>;
     }
 
@@ -199,12 +203,13 @@ export default function CalendarView() {
 
 
     // Visual Indicators - Using background, border, text, and icons
-    let baseClasses = 'relative w-full h-full flex items-center justify-center transition-colors duration-150 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1';
+    let baseClasses = 'relative w-full h-full flex items-center justify-center transition-colors duration-150 ease-in-out focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 cursor-pointer'; // Make div clickable
     let backgroundClass = '';
     let textClass = 'text-foreground/80'; // Default text
     let borderClass = 'border border-transparent';
     let iconOverlay = null;
     let shapeClass = 'rounded-full'; // Default shape
+    let activityIndicator = null; // Dot for sexual activity
 
     // --- Period Styling ---
     if (dayInfo.isPeriodStart) {
@@ -239,8 +244,6 @@ export default function CalendarView() {
         } else if (dayInfo.isPredictedPeriod) {
             borderClass = 'border border-dashed border-primary/30';
             textClass = 'text-muted-foreground';
-            // Maybe add a subtle dot instead?
-            // iconOverlay = <span className="absolute bottom-1 right-1 h-1.5 w-1.5 rounded-full bg-primary/50" />;
         }
 
         // Ovulation Styling (can overlay fertile)
@@ -251,10 +254,18 @@ export default function CalendarView() {
             iconOverlay = <Sparkles className="absolute top-0.5 right-0.5 h-3 w-3 stroke-2 text-accent" />;
         }
 
-         // Logged Data Indicator
-        if (dayInfo.loggedData && (Object.keys(dayInfo.loggedData).length > (dayInfo.loggedData.date ? 1 : 0)) && !dayInfo.isPeriod) { // Check if more than just date exists, and not already styled as period
+         // Logged Data Indicator (General Checkmark)
+        const hasOtherLogs = dayInfo.loggedData && (
+            (dayInfo.loggedData.symptoms && dayInfo.loggedData.symptoms.length > 0) ||
+            dayInfo.loggedData.mood ||
+            dayInfo.loggedData.notes
+        );
+        if (hasOtherLogs && !dayInfo.isPeriod) { // Show checkmark if other logs exist and it's not a period day
             const iconPosition = dayInfo.isOvulation ? "bottom-0.5 left-0.5" : "top-0.5 right-0.5";
-            iconOverlay = iconOverlay && dayInfo.isOvulation ? iconOverlay : <CheckCircle className={cn("absolute h-3 w-3", iconPosition, "text-muted-foreground/70")} aria-label="Data logged" />;
+             // Don't overwrite ovulation sparkle if it exists
+            if (!iconOverlay || !dayInfo.isOvulation) {
+                 iconOverlay = <CheckCircle className={cn("absolute h-3 w-3", iconPosition, "text-muted-foreground/70")} aria-label="Data logged" />;
+            }
         }
 
          // Today's Styling
@@ -269,6 +280,11 @@ export default function CalendarView() {
          }
     }
 
+    // Sexual Activity Indicator (Dot) - Show regardless of other styles except selection
+    if (dayInfo.hasSexualActivity && !isSelected) {
+        activityIndicator = <span className="absolute bottom-0.5 left-0.5 h-1.5 w-1.5 rounded-full bg-red-500" aria-label="Sexual activity logged" />;
+    }
+
 
     // --- Selection Styling (Overrides others) ---
     if (isSelected) {
@@ -278,8 +294,13 @@ export default function CalendarView() {
         // Ensure selection ring is visible
         baseClasses = cn(baseClasses, 'ring-2 ring-accent ring-offset-1 ring-offset-background shadow-md');
         if (iconOverlay) { // Make icon contrast with selection
-            iconOverlay = React.cloneElement(iconOverlay, { className: cn(iconOverlay.props.className, 'text-accent-foreground/80') });
+            iconOverlay = React.cloneElement(iconOverlay as React.ReactElement, { className: cn((iconOverlay as React.ReactElement).props.className, 'text-accent-foreground/80') });
         }
+        // Make activity dot contrast with selection
+         if (dayInfo.hasSexualActivity) {
+             activityIndicator = <span className="absolute bottom-0.5 left-0.5 h-1.5 w-1.5 rounded-full bg-white" aria-label="Sexual activity logged" />;
+         }
+
          // If selected day is part of period range, adjust shape
          if (dayInfo.isPeriodStart && !dayInfo.isPeriodEnd) shapeClass = 'rounded-l-full';
          else if (dayInfo.isPeriodEnd && !dayInfo.isPeriodStart) shapeClass = 'rounded-r-full';
@@ -294,14 +315,21 @@ export default function CalendarView() {
          const nextDayInfo = monthDayInfo[nextDayString];
 
          const isInRangeLike = dayInfo.isPeriodStart || dayInfo.isPeriodEnd || dayInfo.isInPeriodRange;
+         // Check if neighbour is *visually* part of the range (start, end, or in-between)
          const prevIsInRangeLike = prevDayInfo && (prevDayInfo.isPeriodStart || prevDayInfo.isInPeriodRange);
          const nextIsInRangeLike = nextDayInfo && (nextDayInfo.isPeriodEnd || nextDayInfo.isInPeriodRange);
+         const isPrevPeriodEnd = prevDayInfo && prevDayInfo.isPeriodEnd;
+         const isNextPeriodStart = nextDayInfo && nextDayInfo.isPeriodStart;
+
 
         if (isInRangeLike) {
-             if (prevIsInRangeLike && nextIsInRangeLike) shapeClass = 'rounded-none';
-             else if (prevIsInRangeLike) shapeClass = 'rounded-r-full'; // Connected to left
-             else if (nextIsInRangeLike) shapeClass = 'rounded-l-full'; // Connected to right
-             // If it's a start or end day specifically, override if needed
+             // Connect shapes if neighbours are also part of the visual range
+             // Don't connect if the neighbour is the end/start of a *different* period instance
+            if (prevIsInRangeLike && nextIsInRangeLike && !isPrevPeriodEnd && !isNextPeriodStart) shapeClass = 'rounded-none'; // Middle piece
+             else if (prevIsInRangeLike && !isPrevPeriodEnd) shapeClass = 'rounded-r-full'; // Connected to left only
+             else if (nextIsInRangeLike && !isNextPeriodStart) shapeClass = 'rounded-l-full'; // Connected to right only
+
+             // Specific start/end day shapes (override connection logic if needed)
              if (dayInfo.isPeriodStart && dayInfo.isPeriodEnd) shapeClass = 'rounded-full'; // Single day period
              else if (dayInfo.isPeriodStart) shapeClass = 'rounded-l-full';
              else if (dayInfo.isPeriodEnd) shapeClass = 'rounded-r-full';
@@ -317,12 +345,19 @@ export default function CalendarView() {
       shapeClass
     );
 
-     // Use a div wrapper for styling, button inside for interaction if needed,
-     // but DayPicker handles click via onSelect on Calendar itself now.
     return (
-        <div className={combinedClasses} aria-label={`Details for ${format(normalizedDay, 'PPP')}`}>
+        // Replace button with div to avoid nesting button issue
+        <div
+          className={combinedClasses}
+          onClick={(e) => handleDayClick(normalizedDay, {}, e)}
+          aria-label={`Details for ${format(normalizedDay, 'PPP')}`}
+          role="button" // Keep role for accessibility
+          tabIndex={0} // Make it focusable
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleDayClick(normalizedDay, {}, e as any); }} // Trigger click on Enter/Space
+        >
            {format(normalizedDay, 'd')}
            {iconOverlay}
+           {activityIndicator}
         </div>
     );
   };
@@ -348,27 +383,27 @@ export default function CalendarView() {
 
    const selectedDayInfo = selectedDate ? monthDayInfo[format(selectedDate, 'yyyy-MM-dd')] : null;
 
+   // Check if any data exists for the selected day
+   const hasAnySelectedData = selectedDayInfo && (
+        selectedDayInfo.isPeriod ||
+        selectedDayInfo.isFertile ||
+        selectedDayInfo.isOvulation ||
+        selectedDayInfo.isPredictedPeriod ||
+        (selectedDayInfo.loggedData && Object.keys(selectedDayInfo.loggedData).length > 1) || // Check if more than just 'date' exists
+        (selectedDayInfo.loggedData?.periodFlow && selectedDayInfo.loggedData.periodFlow !== 'none')
+   );
+
 
   return (
     <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
       <PopoverTrigger asChild>
          {/* The entire Calendar container can act as the trigger */}
-         {/* Remove redundant button wrapper */}
-          <div className="rounded-lg border shadow-md overflow-hidden bg-card cursor-pointer">
+         {/* Use div instead of button for DayPicker container */}
+          <div className="rounded-lg border shadow-md overflow-hidden bg-card cursor-default">
               <Calendar
                 mode="single"
                 selected={selectedDate}
-                onSelect={ (day, selectedDay, activeModifiers, e) => {
-                     if (day) handleDayClick(day, activeModifiers, e as React.MouseEvent<HTMLButtonElement>);
-                     // If clicking outside days (e.g., prev/next month names), day might be undefined
-                     else if (e.target instanceof Element && e.target.closest('.rdp-nav_button')) {
-                          // Allow month navigation clicks without opening popover
-                         setPopoverOpen(false);
-                     } else {
-                         // Potentially handle clicks on week numbers or other elements if needed
-                         setPopoverOpen(false);
-                     }
-                 }}
+                // onSelect is handled by DayContent click now
                 month={currentMonth}
                 onMonthChange={(month) => setCurrentMonth(startOfDay(month))}
                 className="p-0"
@@ -377,9 +412,9 @@ export default function CalendarView() {
                 caption: 'flex justify-center items-center h-14 border-b relative px-4',
                 caption_label: 'text-lg font-semibold text-foreground',
                 nav: 'flex items-center absolute inset-y-0',
-                nav_button: cn(
-                    buttonVariants({ variant: 'ghost' }),
-                    'h-9 w-9 p-0 text-muted-foreground hover:text-foreground hover:bg-muted rounded-full'
+                nav_button: cn( // Standard button styles
+                    'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
+                    'h-9 w-9 p-0 text-muted-foreground hover:text-foreground hover:bg-muted' // Specific styles for nav buttons
                 ),
                 nav_button_previous: 'left-2',
                 nav_button_next: 'right-2',
@@ -391,9 +426,8 @@ export default function CalendarView() {
                     'h-10 w-10 text-center text-sm p-0 relative',
                     'focus-within:relative focus-within:z-20'
                 ),
-                // Daypicker's default day styles - make them minimal or transparent
-                // We control appearance fully in DayContent
-                day: 'h-10 w-10 p-0 font-normal', // Base size, remove button variant styles
+                // Daypicker's default day styles - we don't use them directly
+                day: 'h-10 w-10 p-0 font-normal', // Base size for layout
                 day_selected: ' ', // Handled by DayContent
                 day_today: ' ', // Handled by DayContent
                 day_outside: ' ', // Handled by DayContent (renders dimmed number)
@@ -417,14 +451,15 @@ export default function CalendarView() {
         align="center"
         sideOffset={8}
         alignOffset={0}
-        onFocusOutside={(event) => event.preventDefault()}
+        onOpenAutoFocus={(e) => e.preventDefault()} // Prevent focus trap issues potentially caused by calendar internals
+        onCloseAutoFocus={(e) => e.preventDefault()} // Prevent focus shifting back unexpectedly
          onPointerDownOutside={(event) => {
-            // Allow interaction with elements inside the popover
+             // Allow interaction with elements inside the popover
             if (event.target instanceof Element && event.target.closest('[data-radix-popover-content]')) {
                  // Do nothing, interaction is inside the popover
             } else {
-                // Close if clicking outside, but check if the click was on the calendar trigger itself
-                 if (!(event.target instanceof Element && event.target.closest('.rdp-button'))) {
+                // Close if clicking outside, but check if the click was on the calendar trigger itself (any part of the DayPicker)
+                 if (!(event.target instanceof Element && event.target.closest('.rdp-button, .rdp-day, .rdp-nav_button, .rdp-caption_label'))) { // Include day elements
                      setPopoverOpen(false);
                  }
             }
@@ -488,13 +523,31 @@ export default function CalendarView() {
                      </span>
                 </div>
                 )}
-                 {selectedDayInfo.loggedData?.sexualActivity && (
+                 {/* Sexual Activity Log */}
+                 {(selectedDayInfo.loggedData?.sexualActivityCount ?? 0) > 0 && (
                      <div className="pt-1">
                          <span className="font-medium text-popover-foreground/90 block mb-1 text-xs uppercase tracking-wider">Activity:</span>
-                         <span className="flex items-center bg-muted/60 px-2 py-0.5 rounded-full text-xs w-fit shadow-sm">
-                             <HeartPulse className="w-4 h-4 mr-1.5 text-red-500" />
-                             Sexual Activity {selectedDayInfo.loggedData.protectionUsed ? '(Protected)' : '(Unprotected)'}
-                         </span>
+                         <div className="flex items-center flex-wrap gap-1.5">
+                             <span className="flex items-center bg-muted/60 px-2 py-0.5 rounded-full text-xs shadow-sm">
+                                 <HeartPulse className="w-4 h-4 mr-1.5 text-red-500" />
+                                 Sexual Activity ({selectedDayInfo.loggedData!.sexualActivityCount}) {/* Use non-null assertion */}
+                             </span>
+                             {selectedDayInfo.loggedData!.protectionUsed !== undefined && (
+                                 <span className="flex items-center bg-muted/60 px-2 py-0.5 rounded-full text-xs shadow-sm">
+                                     {selectedDayInfo.loggedData!.protectionUsed
+                                         ? <ShieldCheck className="w-4 h-4 mr-1.5 text-green-600" />
+                                         : <Ban className="w-4 h-4 mr-1.5 text-red-600" />
+                                     }
+                                     {selectedDayInfo.loggedData!.protectionUsed ? 'Protected' : 'Unprotected'}
+                                 </span>
+                             )}
+                              {selectedDayInfo.loggedData!.orgasm !== undefined && (
+                                 <span className="flex items-center bg-muted/60 px-2 py-0.5 rounded-full text-xs shadow-sm">
+                                     <SmilePlus className="w-4 h-4 mr-1.5 text-pink-500" />
+                                     {selectedDayInfo.loggedData!.orgasm ? 'Orgasm' : 'No Orgasm'}
+                                 </span>
+                             )}
+                         </div>
                      </div>
                  )}
                 {selectedDayInfo.loggedData?.notes && (
@@ -505,11 +558,11 @@ export default function CalendarView() {
                 )}
 
             </div>
-             {(!selectedDayInfo.isPeriod && !selectedDayInfo.isFertile && !selectedDayInfo.isOvulation && !selectedDayInfo.isPredictedPeriod && !selectedDayInfo.loggedData?.symptoms?.length && !selectedDayInfo.loggedData?.mood && !selectedDayInfo.loggedData?.sexualActivity && !selectedDayInfo.loggedData?.notes) && (
+             {!hasAnySelectedData && (
                  <p className="text-sm text-muted-foreground text-center pt-2 italic">No data logged or predicted.</p>
              )}
             {/* Check if there's any meaningful data logged beyond just date and 'none' flow */}
-             {selectedDayInfo.loggedData && (Object.keys(selectedDayInfo.loggedData).length > 1 || (selectedDayInfo.loggedData.periodFlow && selectedDayInfo.loggedData.periodFlow !== 'none')) ? (
+             {hasAnySelectedData ? (
                  <Button variant="default" size="sm" className="w-full mt-4 bg-accent hover:bg-accent/90 text-accent-foreground rounded-full shadow-md" asChild>
                    <Link href={`/log?date=${format(selectedDayInfo.date, 'yyyy-MM-dd')}`} onClick={() => setPopoverOpen(false)}>
                     Edit Log

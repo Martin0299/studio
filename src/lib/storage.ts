@@ -8,12 +8,13 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, parseISO } from 'd
 export interface LogData {
   date: string; // Store date as 'yyyy-MM-dd' string
   periodFlow?: 'none' | 'light' | 'medium' | 'heavy';
+  isPeriodEnd?: boolean; // New field to mark the end of a period
   symptoms?: string[];
   mood?: string;
-  sexualActivity?: boolean;
-  protectionUsed?: boolean;
+  sexualActivityCount?: number; // Number of times activity occurred
+  orgasm?: boolean; // Whether orgasm occurred
+  protectionUsed?: boolean; // Whether protection was used (relevant if sexualActivityCount > 0)
   notes?: string;
-  isPeriodEnd?: boolean; // New field to mark the end of a period
   // Add other relevant fields as needed
 }
 
@@ -42,6 +43,8 @@ export function saveLogEntry(date: Date, data: Omit<LogData, 'date'>): void {
         ? data.periodFlow
         : (isEndingPeriod ? getLogEntry(date)?.periodFlow ?? 'light' : 'none'); // If ending, keep existing or default to light, otherwise 'none'
 
+    // Determine if sexual activity occurred based on count
+    const activityOccurred = (data.sexualActivityCount ?? 0) > 0;
 
     const entryToSave: LogData = {
         ...data,
@@ -49,10 +52,33 @@ export function saveLogEntry(date: Date, data: Omit<LogData, 'date'>): void {
         periodFlow: periodFlow,
         // Ensure isPeriodEnd is false or undefined if flow is 'none'
         isPeriodEnd: periodFlow !== 'none' ? data.isPeriodEnd : false,
+        // Only store protectionUsed and orgasm if activity occurred
+        protectionUsed: activityOccurred ? data.protectionUsed : undefined,
+        orgasm: activityOccurred ? data.orgasm : undefined,
+        // Ensure count is 0 or positive
+        sexualActivityCount: Math.max(0, data.sexualActivityCount ?? 0),
     };
-    localStorage.setItem(key, JSON.stringify(entryToSave));
-    // Optional: Dispatch a custom event to notify other components of the update
-    window.dispatchEvent(new CustomEvent('cycleLogUpdated', { detail: { date: format(date, 'yyyy-MM-dd') } }));
+
+    // Don't save empty entries (only date) unless it's explicitly clearing previous data
+    const hasMeaningfulData = Object.values(entryToSave).some((value, index) => {
+        // Ignore the 'date' field itself for this check
+        return index > 0 && value !== undefined && value !== '' && (!Array.isArray(value) || value.length > 0) && value !== false && value !== 0;
+    });
+
+    const existingEntry = localStorage.getItem(key);
+
+    if (hasMeaningfulData) {
+        localStorage.setItem(key, JSON.stringify(entryToSave));
+        // Optional: Dispatch a custom event to notify other components of the update
+        window.dispatchEvent(new CustomEvent('cycleLogUpdated', { detail: { date: format(date, 'yyyy-MM-dd') } }));
+    } else if (existingEntry) {
+        // If no meaningful data is being saved, but an entry exists, delete it
+        localStorage.removeItem(key);
+        window.dispatchEvent(new CustomEvent('cycleLogUpdated', { detail: { date: format(date, 'yyyy-MM-dd') } }));
+    } else {
+        // No meaningful data and no existing entry, do nothing
+    }
+
   } catch (error) {
     console.error("Error saving log entry to localStorage:", error);
     // Handle potential storage errors (e.g., quota exceeded)
@@ -129,3 +155,4 @@ export function deleteAllLogEntries(): void {
         console.error("Error deleting all log entries from localStorage:", error);
     }
 }
+```
