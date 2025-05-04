@@ -5,15 +5,27 @@ import * as React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { BarChart, LineChart, Droplet, CalendarDays, HeartPulse, Percent, Activity } from 'lucide-react'; // Added icons
 import { useCycleData, LogData } from '@/context/CycleDataContext';
-import { differenceInDays, format, parseISO, addDays, subDays, isWithinInterval } from 'date-fns'; // Add subDays
+import { differenceInDays, format, parseISO, addDays, subDays, isWithinInterval, isValid } from 'date-fns'; // Add subDays, isValid
 import { Skeleton } from '@/components/ui/skeleton'; // Import Skeleton
 import { cn } from '@/lib/utils'; // Import cn utility
 
 // Helper function to calculate cycle insights from log data
-const calculateCycleInsights = (logData: Record<string, LogData>) => {
+const calculateCycleInsights = (logData: Record<string, LogData>): {
+    avgCycleLength: number | null;
+    avgPeriodLength: number | null;
+    predictedNextPeriod: string | null;
+    cycleLengths: number[];
+    periodLengths: number[];
+    totalSexualActivityDays: number;
+    totalActivityCount: number;
+    protectedActivityDays: number;
+    unprotectedActivityDays: number;
+    activityFrequency: number;
+    protectionRate: number | null;
+    pregnancyChance: 'Low' | 'Moderate' | 'Higher' | 'Not enough data';
+    fertileWindowString: string;
+} => {
     const periodStartDates: Date[] = [];
-    let currentPeriodLength = 0;
-    let inPeriod = false;
     const periodLengths: number[] = [];
     const cycleLengths: number[] = [];
     let totalSexualActivityDays = 0;
@@ -22,75 +34,72 @@ const calculateCycleInsights = (logData: Record<string, LogData>) => {
     let totalActivityCount = 0;
 
     // Sort dates to process chronologically
-    const sortedDates = Object.keys(logData).sort((a, b) => parseISO(a).getTime() - parseISO(b).getTime());
+    const sortedDates = Object.keys(logData)
+        .filter(dateString => isValid(parseISO(dateString))) // Filter out invalid date strings
+        .sort((a, b) => parseISO(a).getTime() - parseISO(b).getTime());
 
-    sortedDates.forEach(dateString => {
+    let currentPeriodStartDate: Date | null = null;
+    let currentPeriodDayCount = 0;
+
+    sortedDates.forEach((dateString, index) => {
         const entry = logData[dateString];
         if (!entry || !entry.date) return; // Skip if entry is somehow null/undefined or missing date
 
         const isPeriodDay = entry?.periodFlow && entry.periodFlow !== 'none';
+        const isExplicitEnd = entry?.isPeriodEnd === true;
         const date = parseISO(entry.date); // Parse the date string
 
         // Cycle and Period Length Calculations
-        // Identify start dates: Check if the previous day wasn't a period day or doesn't exist
         const prevDay = subDays(date, 1);
         const prevDayString = format(prevDay, 'yyyy-MM-dd');
         const prevLog = logData[prevDayString];
         const isPeriodStart = isPeriodDay && (!prevLog || !prevLog.periodFlow || prevLog.periodFlow === 'none');
 
         if (isPeriodStart) {
-             const periodStartDate = date;
-             if (periodStartDates.length > 0) {
-                // Calculate cycle length from the previous period start
-                const previousStartDate = periodStartDates[periodStartDates.length - 1];
-                const cycleLength = differenceInDays(periodStartDate, previousStartDate);
-                if (cycleLength > 10 && cycleLength < 100) { // Basic validation
-                    cycleLengths.push(cycleLength);
-                }
-            }
-            periodStartDates.push(periodStartDate);
-
-            // Reset period length calculation if starting a new period
-            if (inPeriod && currentPeriodLength > 0 && currentPeriodLength < 20) {
-                periodLengths.push(currentPeriodLength); // Save the length of the previous period
-            }
-            inPeriod = true;
-            currentPeriodLength = 1;
-
-        } else if (isPeriodDay && inPeriod) {
-            // Continuation of a period
-            currentPeriodLength++;
-        } else if (entry.isPeriodEnd && inPeriod) {
-             // Explicit end logged
-             if (!isPeriodDay) currentPeriodLength++; // Count the end day itself if no flow
-             if (currentPeriodLength > 0 && currentPeriodLength < 20) { // Basic validation
-                 periodLengths.push(currentPeriodLength);
+             // --- Handle end of previous period if it wasn't explicitly marked ---
+             if (currentPeriodStartDate && currentPeriodDayCount > 0 && currentPeriodDayCount < 20) {
+                 periodLengths.push(currentPeriodDayCount);
              }
-             inPeriod = false;
-             currentPeriodLength = 0;
-        } else if (!isPeriodDay && inPeriod) {
-            // Implicit end of a period (gap in logging or explicit 'none' flow)
-            // Only save if we haven't already saved due to an explicit 'isPeriodEnd'
-            if (currentPeriodLength > 0 && currentPeriodLength < 20) {
-                 // Check if the *next* day is a period start, if so, this wasn't really the end
-                 const nextDay = addDays(date, 1);
-                 const nextDayString = format(nextDay, 'yyyy-MM-dd');
-                 const nextLog = logData[nextDayString];
-                 const nextIsPeriod = nextLog?.periodFlow && nextLog.periodFlow !== 'none';
-                 const nextIsStart = nextIsPeriod && (!entry || !entry.periodFlow || entry.periodFlow === 'none'); // Check current day `entry`
+             // --- Start new period ---
+             currentPeriodStartDate = date;
+             currentPeriodDayCount = 1;
+             periodStartDates.push(currentPeriodStartDate);
 
-                 if(!nextIsStart){ // Only mark end if the next day isn't the start of a new period
-                    periodLengths.push(currentPeriodLength);
-                    inPeriod = false;
-                    currentPeriodLength = 0;
-                 } else {
-                    // Don't mark end yet, might be a one-day gap
-                    // currentPeriodLength++; // Or should we reset? Depends on desired handling of gaps. Let's just continue for now.
+             // Calculate cycle length if we have a previous start date
+             if (periodStartDates.length > 1) {
+                 const previousStartDate = periodStartDates[periodStartDates.length - 2];
+                 const cycleLength = differenceInDays(currentPeriodStartDate, previousStartDate);
+                 if (cycleLength > 10 && cycleLength < 100) { // Basic validation
+                     cycleLengths.push(cycleLength);
                  }
-            } else {
-                 inPeriod = false; // Reset if length was 0
-                 currentPeriodLength = 0;
+             }
+        } else if (isPeriodDay && currentPeriodStartDate) {
+            // Continuation of a period
+            currentPeriodDayCount++;
+            if (isExplicitEnd && currentPeriodDayCount > 0 && currentPeriodDayCount < 20) {
+                 // Explicit end logged on a period day
+                 periodLengths.push(currentPeriodDayCount);
+                 currentPeriodStartDate = null; // Reset for next period
+                 currentPeriodDayCount = 0;
             }
+        } else if (currentPeriodStartDate) {
+             // Day is NOT a period day, or it is but period hasn't started according to logic
+             // Check if this is the day *after* a period ended (implicitly or explicitly)
+             if (isExplicitEnd) { // End explicitly marked on a non-period day (or period day handled above)
+                 // The period ended *yesterday*
+                 if (currentPeriodDayCount > 0 && currentPeriodDayCount < 20) {
+                    periodLengths.push(currentPeriodDayCount);
+                 }
+                 currentPeriodStartDate = null; // Reset for next period
+                 currentPeriodDayCount = 0;
+             } else if (!isPeriodDay) {
+                 // Implicit end: A non-period day following a period day
+                 if (currentPeriodDayCount > 0 && currentPeriodDayCount < 20) {
+                     periodLengths.push(currentPeriodDayCount);
+                 }
+                 currentPeriodStartDate = null; // Reset for next period
+                 currentPeriodDayCount = 0;
+             }
         }
 
 
@@ -107,9 +116,9 @@ const calculateCycleInsights = (logData: Record<string, LogData>) => {
         }
     });
 
-     // Add the last period length if still in period at the end of logs
-    if (inPeriod && currentPeriodLength > 0 && currentPeriodLength < 20) {
-        periodLengths.push(currentPeriodLength);
+     // Add the last period length if it was ongoing at the end of logs and wasn't closed
+    if (currentPeriodStartDate && currentPeriodDayCount > 0 && currentPeriodDayCount < 20) {
+        periodLengths.push(currentPeriodDayCount);
     }
 
     // Averages
@@ -117,9 +126,11 @@ const calculateCycleInsights = (logData: Record<string, LogData>) => {
         ? Math.round(cycleLengths.reduce((a, b) => a + b, 0) / cycleLengths.length)
         : null; // Return null if no data
 
+    // Correct average period length calculation
     const avgPeriodLength = periodLengths.length > 0
         ? Math.round(periodLengths.reduce((a, b) => a + b, 0) / periodLengths.length)
         : null; // Return null if no data
+
 
     // Sexual Activity Insights
     const totalLoggedDays = sortedDates.length;
@@ -128,16 +139,22 @@ const calculateCycleInsights = (logData: Record<string, LogData>) => {
 
     // Predict next period (basic: last start + avg cycle length)
     let predictedNextPeriod = null;
-    if (periodStartDates.length > 0 && avgCycleLength && avgPeriodLength) {
+    if (periodStartDates.length > 0 && avgCycleLength && avgPeriodLength && avgPeriodLength > 0) {
         const lastPeriodStartDate = periodStartDates[periodStartDates.length - 1];
         const nextStartDate = addDays(lastPeriodStartDate, avgCycleLength);
         // Predict end based on avg period length, adjust if needed
-        const nextEndDate = addDays(nextStartDate, Math.max(1, avgPeriodLength) - 1); // Ensure at least 1 day length, -1 because start day counts
+        const nextEndDate = addDays(nextStartDate, avgPeriodLength - 1); // -1 because start day counts
         predictedNextPeriod = `${format(nextStartDate, 'MMM do')} - ${format(nextEndDate, 'MMM do, yyyy')}`;
+    } else if (periodStartDates.length > 0 && avgCycleLength) {
+         // Predict only start date if period length is unknown
+         const lastPeriodStartDate = periodStartDates[periodStartDates.length - 1];
+         const nextStartDate = addDays(lastPeriodStartDate, avgCycleLength);
+         predictedNextPeriod = `Around ${format(nextStartDate, 'MMM do, yyyy')}`;
     }
 
+
     // Basic Pregnancy Chance Placeholder (Highly inaccurate - needs proper fertile window calculation)
-    let pregnancyChance = 'Low'; // Default
+    let pregnancyChance: 'Low' | 'Moderate' | 'Higher' | 'Not enough data' = 'Not enough data';
     let fertileWindowString = 'Not enough data';
     const today = new Date();
     if (periodStartDates.length > 0 && avgCycleLength) {
@@ -156,7 +173,11 @@ const calculateCycleInsights = (logData: Record<string, LogData>) => {
             pregnancyChance = 'Higher';
          } else if (isWithinInterval(today, { start: subDays(fertileWindowStart, 3), end: addDays(fertileWindowEnd, 3) })) { // Wider window for 'moderate'
              pregnancyChance = 'Moderate';
+         } else {
+             pregnancyChance = 'Low'; // Default outside the wider window
          }
+    } else {
+        pregnancyChance = 'Not enough data';
     }
 
 
@@ -177,14 +198,13 @@ const calculateCycleInsights = (logData: Record<string, LogData>) => {
     };
 };
 
-type InsightsData = ReturnType<typeof calculateCycleInsights> | null;
 
 export default function InsightsPage() {
   const { logData, isLoading } = useCycleData();
-  const [insights, setInsights] = React.useState<InsightsData>(null);
+  const [insights, setInsights] = React.useState(calculateCycleInsights({})); // Initialize with default empty state
 
  React.useEffect(() => {
-    if (!isLoading && logData && Object.keys(logData).length > 0) {
+    if (!isLoading && logData) { // Ensure logData is not null/undefined
       const calculatedInsights = calculateCycleInsights(logData);
       setInsights(calculatedInsights);
     } else if (!isLoading) {
@@ -192,13 +212,11 @@ export default function InsightsPage() {
         setInsights(calculateCycleInsights({})); // Calculate with empty data for default null values
     }
      // Intentionally only depend on logData and isLoading.
-     // recalculateCycleInsights is stable if defined outside or wrapped in useCallback.
-     // setInsights is stable.
   }, [logData, isLoading]);
 
 
   // Render Loading State
-  if (isLoading || insights === null) { // Keep insights check for initial load before useEffect runs
+  if (isLoading) { // Only check isLoading now
      return (
         <div className="container mx-auto py-6 px-4 max-w-md space-y-6">
              <h1 className="text-2xl font-semibold text-center mb-6">Your Insights</h1>
@@ -231,7 +249,7 @@ export default function InsightsPage() {
           <CardTitle className="text-lg flex items-center">
              <CalendarDays className="mr-2 h-5 w-5 text-primary"/> Cycle Summary
           </CardTitle>
-          {!hasEnoughCycleData && <CardDescription className="!mt-1">Log more cycle start and end dates to see detailed summaries.</CardDescription>}
+          {!hasEnoughCycleData && insights.cycleLengths.length < 2 && <CardDescription className="!mt-1">Log at least two full cycles to see summaries.</CardDescription>}
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <p>Average Cycle Length: <span className="font-medium">{insights.avgCycleLength ? `${insights.avgCycleLength} days` : 'Not enough data'}</span></p>
@@ -264,7 +282,10 @@ export default function InsightsPage() {
           <CardTitle className="text-lg flex items-center">
             <Percent className="mr-2 h-5 w-5 text-green-500"/> Fertility Estimate
           </CardTitle>
-          <CardDescription className="!mt-1 text-xs text-muted-foreground">Based on simple cycle calculation. Not a reliable method of contraception or conception planning.</CardDescription>
+           {insights.pregnancyChance === 'Not enough data' && <CardDescription className="!mt-1">Log more cycles for estimates.</CardDescription>}
+          <CardDescription className={cn("!mt-1 text-xs text-muted-foreground", insights.pregnancyChance !== 'Not enough data' && "pt-1")}>
+             Based on simple cycle calculation. Not a reliable method of contraception or conception planning.
+          </CardDescription>
         </CardHeader>
         <CardContent className="text-sm space-y-1">
           <p>Estimated Fertile Window: <span className="font-medium">{insights.fertileWindowString}</span></p>
@@ -272,7 +293,8 @@ export default function InsightsPage() {
                 "font-medium",
                 insights.pregnancyChance === 'Higher' && 'text-red-600 dark:text-red-400',
                 insights.pregnancyChance === 'Moderate' && 'text-yellow-600 dark:text-yellow-400',
-                insights.pregnancyChance === 'Low' && 'text-green-600 dark:text-green-400'
+                insights.pregnancyChance === 'Low' && 'text-green-600 dark:text-green-400',
+                insights.pregnancyChance === 'Not enough data' && 'text-muted-foreground italic'
               )}>{insights.pregnancyChance}</span>
           </p>
         </CardContent>
@@ -291,6 +313,7 @@ export default function InsightsPage() {
              <div className="h-40 flex items-center justify-center bg-muted/50 rounded-md">
                 <p className="text-muted-foreground text-sm">Cycle length chart coming soon</p>
                 {/* TODO: Implement Bar Chart using shadcn/ui charts */}
+                 {/* <p className="text-xs text-muted-foreground mt-2">Data: {insights.cycleLengths.join(', ')}</p> */}
              </div>
           ) : (
               <div className="h-40 flex items-center justify-center bg-muted/50 rounded-md">
@@ -313,6 +336,7 @@ export default function InsightsPage() {
             <div className="h-40 flex items-center justify-center bg-muted/50 rounded-md">
                 <p className="text-muted-foreground text-sm">Period length chart coming soon</p>
                 {/* TODO: Implement Bar Chart for Period Length */}
+                 {/* <p className="text-xs text-muted-foreground mt-2">Data: {insights.periodLengths.join(', ')}</p> */}
             </div>
           ) : (
              <div className="h-40 flex items-center justify-center bg-muted/50 rounded-md">
