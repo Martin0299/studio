@@ -401,12 +401,12 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
                                 size="icon"
                                 className="h-8 w-8"
                                 onClick={() => field.onChange(Math.max(0, (field.value ?? 0) - 1))}
-                                disabled={field.value === 0}
+                                disabled={(field.value ?? 0) === 0} // Explicit check for 0
                             >
                                 <Minus className="h-4 w-4" />
                             </Button>
                             <span className="text-lg font-medium w-8 text-center">
-                                {field.value}
+                                {field.value ?? 0} {/* Display 0 if undefined */}
                             </span>
                              <Button
                                 type="button"
@@ -514,4 +514,3 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
     </Form>
   );
 }
-```
