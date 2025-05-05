@@ -7,7 +7,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { cn } from "@/lib/utils";
-import { BookOpen, HeartHandshake, Stethoscope, Utensils, Moon, Activity, MapPin, CalendarCheck2, Brain, Baby } from 'lucide-react'; // Added Baby icon
+// Added Baby, Wallet, FileText, Building icons
+import { BookOpen, HeartHandshake, Stethoscope, Utensils, Activity, MapPin, CalendarCheck2, Brain, Baby, Wallet, FileText, Building } from 'lucide-react';
 
 // Define the structure for checklist items
 interface ChecklistItem {
@@ -31,37 +32,44 @@ const planningChecklist: ChecklistSection[] = [
     title: 'Health & Wellness Check-up',
     icon: Stethoscope,
     items: [
-      { id: 'health-visit', label: 'Schedule a preconception check-up with your doctor/OB-GYN' },
-      { id: 'health-meds', label: 'Discuss current medications & supplements with your doctor' },
-      { id: 'health-vaccines', label: 'Ensure vaccinations are up-to-date (e.g., Rubella, Varicella)' },
-      { id: 'health-dental', label: 'Schedule a dental check-up and cleaning' },
-      { id: 'health-sti', label: 'Consider STI screening if applicable' },
-      { id: 'health-genetics', label: 'Discuss genetic carrier screening if relevant based on family history/ethnicity' },
+      { id: 'health-visit-doctor', label: 'Schedule a preconception check-up with your doctor/OB-GYN', details: 'Discuss medical history, current health, and pregnancy goals.' },
+      { id: 'health-meds', label: 'Review all current medications & supplements with your doctor', details: 'Include prescription, over-the-counter, and herbal supplements.' },
+      { id: 'health-vaccines', label: 'Ensure vaccinations are up-to-date', details: 'Check for immunity to Rubella, Varicella (Chickenpox), MMR, Tdap.' },
+      { id: 'health-chronic', label: 'Manage chronic health conditions', details: 'Optimize conditions like diabetes, hypertension, thyroid issues before conceiving.' },
+      { id: 'health-dental', label: 'Schedule a dental check-up and cleaning', details: 'Gum disease can be linked to preterm birth.' },
+      { id: 'health-sti', label: 'Consider STI screening for both partners', details: 'Untreated STIs can affect fertility and pregnancy.' },
+      { id: 'health-genetics', label: 'Discuss genetic carrier screening', details: 'Based on family history, ethnicity, or doctor’s recommendation.' },
+      { id: 'health-pap', label: 'Ensure Pap smear is up-to-date', details: 'Follow your doctor’s screening recommendations.' },
     ],
   },
   {
     id: 'nutrition',
-    title: 'Nutrition & Lifestyle',
+    title: 'Nutrition & Hydration',
     icon: Utensils,
     items: [
-      { id: 'nutrition-folic', label: 'Start taking a prenatal vitamin with folic acid (at least 400mcg)', details: 'Begin at least 1 month before trying to conceive.' },
-      { id: 'nutrition-diet', label: 'Focus on a balanced diet rich in fruits, vegetables, lean protein, and whole grains' },
-      { id: 'nutrition-limit-fish', label: 'Limit high-mercury fish (e.g., shark, swordfish)' },
-      { id: 'nutrition-limit-caffeine', label: 'Reduce caffeine intake (consult doctor for recommendations)' },
-      { id: 'nutrition-stop-alcohol', label: 'Stop drinking alcohol completely' },
-      { id: 'nutrition-stop-smoking', label: 'Stop smoking and avoid secondhand smoke' },
-      { id: 'nutrition-stop-drugs', label: 'Avoid recreational drugs' },
+      { id: 'nutrition-folic', label: 'Start taking a prenatal vitamin with folic acid', details: 'Begin at least 1 month before trying (min 400mcg folic acid, check for DHA).' },
+      { id: 'nutrition-diet', label: 'Eat a balanced, nutrient-dense diet', details: 'Focus on fruits, vegetables, lean proteins, whole grains, healthy fats.' },
+      { id: 'nutrition-hydration', label: 'Stay well-hydrated', details: 'Aim for 8-10 glasses of water daily.' },
+      { id: 'nutrition-limit-fish', label: 'Limit high-mercury fish', details: 'Avoid shark, swordfish, king mackerel, tilefish. Limit albacore tuna.' },
+      { id: 'nutrition-food-safety', label: 'Practice good food safety', details: 'Avoid unpasteurized dairy, undercooked meats/eggs, deli meats unless heated.' },
+      { id: 'nutrition-limit-processed', label: 'Reduce processed foods and added sugars', details: 'Focus on whole, unprocessed foods.' },
+      // { id: 'nutrition-vitamin-d', label: 'Check Vitamin D levels', details: 'Discuss supplementation with your doctor if needed.' }, // Optional, consult doctor
     ],
   },
   {
-    id: 'fitness-sleep',
-    title: 'Fitness & Sleep',
-    icon: Activity, // Changed icon
+    id: 'lifestyle',
+    title: 'Lifestyle Adjustments',
+    icon: Activity,
     items: [
-      { id: 'fitness-exercise', label: 'Maintain or start a moderate exercise routine', details: 'Aim for ~150 minutes of moderate activity per week.' },
-      { id: 'fitness-weight', label: 'Achieve a healthy weight (BMI within healthy range)' },
-      { id: 'fitness-sleep', label: 'Prioritize getting enough sleep (7-9 hours per night)' },
-      { id: 'fitness-stress', label: 'Manage stress through relaxation techniques (yoga, meditation, etc.)' },
+      { id: 'lifestyle-alcohol', label: 'Stop drinking alcohol completely', details: 'There is no known safe amount of alcohol during pregnancy planning or pregnancy.' },
+      { id: 'lifestyle-smoking', label: 'Stop smoking and using tobacco products', details: 'This includes vaping. Seek help if needed.' },
+      { id: 'lifestyle-secondhand', label: 'Avoid secondhand smoke.' },
+      { id: 'lifestyle-drugs', label: 'Avoid recreational drugs.' },
+      { id: 'lifestyle-caffeine', label: 'Reduce caffeine intake', details: 'Aim for less than 200mg per day (about one 12oz cup of coffee).' },
+      { id: 'lifestyle-exercise', label: 'Maintain or start moderate exercise', details: 'Aim for ~150 minutes/week (walking, swimming, prenatal yoga). Listen to your body.' },
+      { id: 'lifestyle-weight', label: 'Achieve and maintain a healthy weight', details: 'Discuss with your doctor if you are underweight or overweight.' },
+      { id: 'lifestyle-sleep', label: 'Prioritize adequate sleep', details: 'Aim for 7-9 hours per night.' },
+      { id: 'lifestyle-stress', label: 'Manage stress effectively', details: 'Practice relaxation techniques like deep breathing, meditation, yoga, or hobbies.' },
     ],
   },
    {
@@ -69,9 +77,10 @@ const planningChecklist: ChecklistSection[] = [
     title: 'Cycle Tracking & Timing',
     icon: CalendarCheck2,
     items: [
-      { id: 'cycle-track', label: 'Track your menstrual cycles accurately', details: 'Use LunaBloom or another method.'},
-      { id: 'cycle-fertile', label: 'Identify your fertile window (use ovulation predictor kits, basal body temp, cervical mucus tracking if desired)' },
-      { id: 'cycle-timing', label: 'Plan intercourse during the fertile window', details: 'Typically the few days leading up to and including ovulation.' },
+      { id: 'cycle-track', label: 'Track your menstrual cycles', details: 'Use LunaBloom or another method to understand your cycle length and regularity.' },
+      { id: 'cycle-fertile', label: 'Identify your fertile window', details: 'Use ovulation predictor kits, basal body temperature, or cervical mucus tracking.' },
+      { id: 'cycle-timing', label: 'Time intercourse during the fertile window', details: 'Typically the 5 days before and the day of ovulation.' },
+      // { id: 'cycle-lube', label: 'Use fertility-friendly lubricants if needed', details: 'Some standard lubricants can harm sperm.' }, // Optional
     ],
   },
   {
@@ -79,19 +88,45 @@ const planningChecklist: ChecklistSection[] = [
     title: 'Partner & Mental Preparation',
     icon: HeartHandshake,
     items: [
-      { id: 'partner-discuss', label: 'Discuss parenting goals and expectations with your partner' },
-      { id: 'partner-support', label: 'Build a strong support system (family, friends)' },
-      { id: 'partner-mental', label: 'Mentally prepare for the lifestyle changes pregnancy and parenthood bring' },
-      { id: 'partner-finances', label: 'Review finances and plan for potential costs (healthcare, baby supplies)' },
+      { id: 'partner-discuss-parenting', label: 'Discuss parenting goals, values, and expectations with your partner' },
+      { id: 'partner-discuss-roles', label: 'Talk about roles, responsibilities, and division of labor after baby arrives' },
+      { id: 'partner-support', label: 'Build and nurture your support system', details: 'Connect with supportive family, friends, or parent groups.' },
+      { id: 'partner-mental', label: 'Mentally prepare for lifestyle changes', details: 'Acknowledge the shifts pregnancy and parenthood bring.' },
+      { id: 'partner-mental-health', label: 'Address any existing mental health concerns', details: 'Seek professional support if needed.' },
+    ],
+  },
+   {
+    id: 'financial-planning',
+    title: 'Financial Planning',
+    icon: Wallet,
+    items: [
+      { id: 'finance-budget', label: 'Review your budget and savings', details: 'Plan for costs of prenatal care, delivery, baby supplies, potential income changes.' },
+      { id: 'finance-insurance', label: 'Understand your health insurance coverage', details: 'Check maternity benefits, provider network, deductibles, copays.' },
+      { id: 'finance-leave', label: 'Research parental leave policies', details: 'Understand options available through work and government programs.' },
+      { id: 'finance-life-insurance', label: 'Consider life and disability insurance', details: 'Review needs for financial protection.' },
+      // { id: 'finance-will', label: 'Update or create a will', details: 'Consider guardianship for your child.' }, // Optional
     ],
   },
   {
     id: 'environment',
-    title: 'Environmental Factors',
+    title: 'Environmental Health',
     icon: MapPin,
     items: [
-      { id: 'env-toxins', label: 'Avoid exposure to harmful chemicals and toxins at home and work' },
-      { id: 'env-hazards', label: 'Assess potential workplace hazards' },
+      { id: 'env-toxins-home', label: 'Reduce exposure to harmful chemicals at home', details: 'Use natural cleaning products, ensure good ventilation, filter drinking water if needed.' },
+      { id: 'env-toxins-work', label: 'Assess potential workplace hazards', details: 'Discuss concerns about chemical exposure, radiation, or heavy lifting with your employer/doctor.' },
+      { id: 'env-pesticides', label: 'Minimize exposure to pesticides', details: 'Wash produce thoroughly, consider organic options.' },
+      { id: 'env-plastics', label: 'Reduce exposure to BPA and phthalates', details: 'Avoid microwaving food in plastic, choose glass or stainless steel containers.' },
+      // { id: 'env-partner', label: 'Partner should also limit environmental exposures.' }, // Optional
+    ],
+  },
+    {
+    id: 'healthcare-provider',
+    title: 'Choosing Healthcare Provider',
+    icon: Building, // Changed icon
+    items: [
+      { id: 'provider-research', label: 'Research potential OB-GYNs or midwives', details: 'Consider hospital affiliations, birthing philosophies, patient reviews.' },
+      { id: 'provider-schedule', label: 'Schedule consultations if desired', details: 'Meet potential providers to see if they are a good fit.' },
+      { id: 'provider-confirm', label: 'Confirm your chosen provider accepts your insurance.' },
     ],
   },
     {
@@ -99,8 +134,9 @@ const planningChecklist: ChecklistSection[] = [
     title: 'Knowledge & Education',
     icon: Brain,
     items: [
-      { id: 'knowledge-read', label: 'Read books or reliable resources about pregnancy and childbirth' },
-      { id: 'knowledge-classes', label: 'Consider attending preconception or early pregnancy classes' },
+      { id: 'knowledge-read', label: 'Read reputable books/websites about preconception, pregnancy, childbirth, and newborn care.' },
+      { id: 'knowledge-classes', label: 'Consider attending preconception or early pregnancy classes.' },
+      { id: 'knowledge-ask', label: 'Prepare questions for your healthcare provider.' },
     ],
   },
 ];
@@ -144,7 +180,7 @@ export default function BabyPlanningPage() {
         Baby Planning Checklist
       </h1>
       <p className="text-center text-muted-foreground mb-8">
-        A guide to help you prepare for a healthy conception and pregnancy. Remember to consult your healthcare provider for personalized advice.
+        A comprehensive guide to help you prepare for a healthy conception and pregnancy. Remember to consult your healthcare provider for personalized advice.
       </p>
 
       <Accordion type="multiple" defaultValue={planningChecklist.map(s => s.id)} className="w-full space-y-4">
@@ -167,9 +203,11 @@ export default function BabyPlanningPage() {
                         checked={!!checkedItems[item.id]}
                         onCheckedChange={(checked) => handleCheckedChange(item.id, !!checked)}
                         className="mt-1 flex-shrink-0 border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+                        aria-labelledby={`${item.id}-label`} // Link checkbox to label for accessibility
                       />
                       <div className="grid gap-1.5 leading-snug">
                         <Label
+                          id={`${item.id}-label`} // Unique ID for label
                           htmlFor={item.id}
                           className={cn(
                               "font-medium cursor-pointer",
