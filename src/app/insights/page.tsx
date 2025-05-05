@@ -27,39 +27,53 @@ const getCyclePhase = (
 
     // Find the cycle this date belongs to
     let cycleStartDate: Date | null = null;
-    let cycleEndDate: Date | null = null;
+    // let cycleEndDate: Date | null = null; // This should be the *actual* end date of the period in this cycle - Not needed for phase calculation directly
     let nextCycleStartDate: Date | null = null;
 
+    // Find the period start date that *precedes or includes* the given date.
     for (let i = periodStartDates.length - 1; i >= 0; i--) {
         const currentStart = periodStartDates[i];
         const estimatedNextStart = addDays(currentStart, avgCycleLength);
 
-        if (!isAfter(date, estimatedNextStart)) { // Belongs to the cycle starting on currentStart or before
-            cycleStartDate = currentStart;
-            nextCycleStartDate = estimatedNextStart;
-            // Estimate the end date of the period
-             const periodEndDate = addDays(cycleStartDate, avgPeriodLength - 1);
-             cycleEndDate = periodEndDate; // Keep this for clarity, might refine later
+        // If the date is before the *next* estimated start, it belongs to the cycle starting 'currentStart'
+        // Also handle the very first cycle edge case (i === 0)
+        if (!isAfter(date, estimatedNextStart) || i === 0) {
+             // Check if the date is *before* the first known period start
+             if (isBefore(date, periodStartDates[0])) {
+                 return 'Unknown';
+             }
 
-             // Period Phase
+            cycleStartDate = currentStart;
+            nextCycleStartDate = estimatedNextStart; // This is an *estimated* next start
+
+            // Estimate the end date of the period for *this* cycle using average length
+            const periodEndDate = addDays(cycleStartDate, avgPeriodLength - 1);
+
+             // Period Phase Check: Date is within the period duration starting from cycleStartDate
              if (isWithinInterval(date, { start: cycleStartDate, end: periodEndDate })) {
                  return 'Period';
              }
+             // We found the relevant cycle, break the loop
              break;
         }
     }
 
-    if (!cycleStartDate || !nextCycleStartDate || !cycleEndDate) {
-        // If the date is before the very first logged period start, it's Unknown
-        if (periodStartDates.length > 0 && isBefore(date, periodStartDates[0])) {
+     // If we couldn't determine the cycle start/end (e.g., date is far in the future or before first log)
+     if (!cycleStartDate || !nextCycleStartDate) {
+          // This check might be redundant due to the isBefore check inside the loop
+         if (periodStartDates.length > 0 && isBefore(date, periodStartDates[0])) {
              return 'Unknown';
-        }
-        // If it's after the last known cycle but we lack enough data to predict the next one reliably
-         // This might still be improved based on how predictions are handled
+         }
+         // If the date is after the last cycle's estimated end but we can't predict reliably
          return 'Unknown';
-    }
+     }
 
-    // Estimate ovulation day (approx. 14 days before next cycle starts)
+     // Now we have cycleStartDate and an *estimated* nextCycleStartDate
+     // Re-calculate estimated period end date based on average length for phase calculations below
+     const estimatedPeriodEndDate = addDays(cycleStartDate, avgPeriodLength - 1);
+
+
+    // Estimate ovulation day (approx. 14 days before *estimated* next cycle starts)
     const ovulationDay = subDays(nextCycleStartDate, 14);
 
     // Fertile Window (approx. 5 days before + ovulation day + 1 day after)
@@ -69,30 +83,35 @@ const getCyclePhase = (
         return 'Fertile Window';
     }
 
-    // Follicular Phase (After period ends, before fertile window starts)
-    const follicularStart = addDays(cycleEndDate, 1); // Day after period ends
+    // Follicular Phase (After *estimated* period ends, before fertile window starts)
+    const follicularStart = addDays(estimatedPeriodEndDate, 1); // Day after period ends
     const follicularEnd = subDays(fertileWindowStart, 1); // Day before fertile window
-    // Check if follicularEnd is before follicularStart (can happen with very short cycles/long periods)
-    if (!isBefore(follicularEnd, follicularStart)) {
-        if (isWithinInterval(date, { start: follicularStart, end: follicularEnd })) {
+
+    // Check validity and interval for Follicular Phase
+    // Ensure follicularEnd is not before follicularStart
+     if (!isBefore(follicularEnd, follicularStart)) {
+         if (isWithinInterval(date, { start: follicularStart, end: follicularEnd })) {
              return 'Follicular';
-        }
-    } else if (isEqual(date, follicularStart)) { // Handle case where follicular phase is only one day
+         }
+     } else if (isEqual(date, follicularStart)) { // Handle single-day phase
          return 'Follicular';
-    }
+     }
 
 
     // Luteal Phase (After fertile window ends, before next period starts)
     const lutealStart = addDays(fertileWindowEnd, 1); // Day after fertile window
     const lutealEnd = subDays(nextCycleStartDate, 1); // Day before next period
-    // Check if lutealEnd is before lutealStart (unlikely but possible with calculation issues)
-    if (!isBefore(lutealEnd, lutealStart)) {
+
+    // Check validity and interval for Luteal Phase
+    // Ensure lutealEnd is not before lutealStart
+     if (!isBefore(lutealEnd, lutealStart)) {
         if (isWithinInterval(date, { start: lutealStart, end: lutealEnd })) {
             return 'Luteal';
         }
-    } else if (isEqual(date, lutealStart)) { // Handle case where luteal phase is only one day
+    } else if (isEqual(date, lutealStart)) { // Handle single-day phase
         return 'Luteal';
     }
+
 
     return 'Unknown'; // Default if it doesn't fit neatly
 };
@@ -364,8 +383,9 @@ const activityChartConfig = {
   },
 } satisfies ChartConfig;
 
+// Corrected Symptom Chart Config
 const symptomChartConfig = {
-  count: {
+  count: { // Changed key to 'count' to match data structure
     label: "Total Symptoms Logged",
     color: "hsl(var(--chart-3))",
   },
@@ -395,7 +415,7 @@ export default function InsightsPage() {
       return insights.cycleLengths.map((length, index) => ({
           cycleNumber: index + 1,
           length: length,
-          fill: "var(--color-length)", // Add fill color
+          fill: "var(--color-length)", // Use CSS variable from config
       }));
   }, [insights.cycleLengths]);
 
@@ -405,7 +425,7 @@ export default function InsightsPage() {
     return insights.periodLengths.map((length, index) => ({
         periodNumber: index + 1,
         length: length,
-        fill: "var(--color-length)", // Add fill color
+        fill: "var(--color-length)", // Use CSS variable from config
     }));
 }, [insights.periodLengths]);
 
@@ -416,7 +436,7 @@ export default function InsightsPage() {
        .map(phase => ({
          phase: phase,
          count: insights.activityByPhase[phase] || 0,
-         fill: "var(--color-count)", // Add fill color
+         fill: "var(--color-count)", // Use CSS variable from config
        }))
        .filter(item => item.count > 0 || item.phase !== 'Unknown' || insights.totalActivityCount > 0); // Show all phases if any activity exists
    }, [insights.activityByPhase, insights.totalActivityCount]);
@@ -430,8 +450,8 @@ export default function InsightsPage() {
             const totalCount = Object.values(symptomsInPhase).reduce((sum, count) => sum + count, 0);
             return {
                 phase: phase,
-                count: totalCount,
-                fill: "var(--color-count)", // Use symptom color from config
+                count: totalCount, // Data key is 'count'
+                fill: "var(--color-count)", // Use CSS variable from config
             };
         })
         .filter(item => item.count > 0 || item.phase !== 'Unknown' || insights.totalSymptomCount > 0); // Show all phases if any symptoms exist
@@ -558,9 +578,9 @@ export default function InsightsPage() {
                         />
                          <ChartTooltip
                              cursor={false}
-                             content={<ChartTooltipContent indicator="dot" nameKey="length"/>} // Pass nameKey for label
+                             content={<ChartTooltipContent indicator="dot" nameKey="length"/>} // Use 'length' which is in the data and config
                              />
-                        <Bar dataKey="length" name="Cycle Length" radius={4} />
+                        <Bar dataKey="length" name="Cycle Length" radius={4} fill="var(--color-length)" />
                     </BarChart>
                 </ResponsiveContainer>
             </ChartContainer>
@@ -606,9 +626,9 @@ export default function InsightsPage() {
                             />
                             <ChartTooltip
                                 cursor={false}
-                                content={<ChartTooltipContent indicator="dot" nameKey="length"/>} // Pass nameKey for label
+                                content={<ChartTooltipContent indicator="dot" nameKey="length"/>} // Use 'length'
                             />
-                            <Bar dataKey="length" name="Period Length" radius={4} />
+                            <Bar dataKey="length" name="Period Length" radius={4} fill="var(--color-length)"/>
                         </BarChart>
                     </ResponsiveContainer>
                 </ChartContainer>
@@ -654,9 +674,9 @@ export default function InsightsPage() {
                         />
                          <ChartTooltip
                              cursor={false}
-                             content={<ChartTooltipContent indicator="dot" nameKey="count" />} // Use nameKey for label
+                             content={<ChartTooltipContent indicator="dot" nameKey="count" />} // Use 'count'
                          />
-                        <Bar dataKey="count" name="Activity Count" radius={4} />
+                        <Bar dataKey="count" name="Activity Count" radius={4} fill="var(--color-count)" />
                     </BarChart>
                 </ResponsiveContainer>
             </ChartContainer>
@@ -673,8 +693,7 @@ export default function InsightsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center">
-             {/* Using Info icon as a generic representation */}
-             <Info className="mr-2 h-5 w-5 text-chart-3"/> Symptom Patterns (Total Count)
+             <Info className="mr-2 h-5 w-5 text-chart-3"/> Symptom Patterns
           </CardTitle>
            {insights.totalSymptomCount === 0 && <CardDescription className="!mt-1">Log symptoms regularly to uncover patterns.</CardDescription>}
            <CardDescription className="!mt-1 text-xs text-muted-foreground">Shows the total number of symptoms logged per cycle phase.</CardDescription>
@@ -695,7 +714,7 @@ export default function InsightsPage() {
                         />
                         <YAxis
                              type="number"
-                             domain={[0, 'dataMax + 1']}
+                             domain={[0, 'dataMax + 1']} // Ensure Y-axis starts at 0
                              allowDecimals={false}
                              tickLine={false}
                              axisLine={false}
@@ -703,11 +722,13 @@ export default function InsightsPage() {
                              fontSize={10}
                              width={30}
                         />
+                         {/* Corrected Tooltip: Use nameKey='count' */}
                          <ChartTooltip
                              cursor={false}
-                             content={<ChartTooltipContent indicator="dot" nameKey="count" />} // Use nameKey for label
+                             content={<ChartTooltipContent indicator="dot" nameKey="count" />}
                          />
-                        <Bar dataKey="count" name="Total Symptoms" radius={4} />
+                         {/* Corrected Bar: Use dataKey='count' and fill */}
+                        <Bar dataKey="count" name="Total Symptoms" radius={4} fill="var(--color-count)" />
                     </BarChart>
                 </ResponsiveContainer>
             </ChartContainer>
