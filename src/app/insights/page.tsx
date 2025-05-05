@@ -451,6 +451,7 @@ export default function InsightsPage() {
   const [insights, setInsights] = React.useState(() => calculateCycleInsights({}));
   const [healthTips, setHealthTips] = React.useState<string>('');
   const [isTipsLoading, setIsTipsLoading] = React.useState(false);
+  const [isTipsDialogOpen, setIsTipsDialogOpen] = React.useState(false); // Control dialog state
   const { toast } = useToast();
 
  React.useEffect(() => {
@@ -576,57 +577,59 @@ export default function InsightsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
         {/* Get Health Tips Card */}
-        <Dialog>
-            <DialogTrigger asChild>
+         <Dialog open={isTipsDialogOpen} onOpenChange={setIsTipsDialogOpen}>
+             <DialogTrigger asChild>
                  <Card className="shadow-md hover:shadow-lg transition-shadow cursor-pointer bg-gradient-to-br from-accent/10 to-primary/10 md:col-span-2">
-                    <CardHeader>
-                        <CardTitle className="text-xl flex items-center text-accent">
-                            <Lightbulb className="mr-2 h-6 w-6"/> Get Personalized Health Tips
-                        </CardTitle>
-                        <CardDescription className="!mt-1 text-xs">
-                             Receive AI-powered tips related to your cycle phase, symptoms, nutrition, and well-being.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                         <Button variant="default" className="w-full bg-accent hover:bg-accent/90 text-accent-foreground" onClick={(e) => { e.stopPropagation(); handleGetTips(); }}> {/* Prevent triggering Dialog open when clicking button inside trigger */}
-                             Generate Tips
+                     <CardHeader>
+                         <CardTitle className="text-xl flex items-center text-accent">
+                             <Lightbulb className="mr-2 h-6 w-6"/> Personalized Health Tips
+                         </CardTitle>
+                         <CardDescription className="!mt-1 text-xs">
+                             View AI-powered tips related to your cycle phase, symptoms, nutrition, and well-being.
+                         </CardDescription>
+                     </CardHeader>
+                     <CardContent>
+                          {/* Button to open the dialog */}
+                         <Button variant="outline" className="w-full" onClick={() => setIsTipsDialogOpen(true)}>
+                             View Tips
                          </Button>
-                    </CardContent>
-                </Card>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                    <DialogTitle className="flex items-center"><Lightbulb className="mr-2 h-5 w-5 text-accent" /> Health & Wellness Tips</DialogTitle>
-                    <DialogDescription>
-                        General tips based on common menstrual health knowledge. Remember, this is not medical advice.
-                    </DialogDescription>
-                </DialogHeader>
-                <ScrollArea className="max-h-[60vh] p-4 border rounded-md my-4"> {/* Added ScrollArea */}
+                     </CardContent>
+                 </Card>
+             </DialogTrigger>
+             <DialogContent className="sm:max-w-[425px]">
+                 <DialogHeader>
+                     <DialogTitle className="flex items-center"><Lightbulb className="mr-2 h-5 w-5 text-accent" /> Health & Wellness Tips</DialogTitle>
+                     <DialogDescription>
+                         General tips based on common menstrual health knowledge. Remember, this is not medical advice.
+                     </DialogDescription>
+                 </DialogHeader>
+                 <ScrollArea className="max-h-[60vh] p-4 border rounded-md my-4">
                      {isTipsLoading ? (
-                        <div className="flex justify-center items-center h-40">
+                         <div className="flex justify-center items-center h-40">
                              <Loader2 className="h-8 w-8 animate-spin text-accent" />
-                        </div>
-                    ) : healthTips ? (
+                         </div>
+                     ) : healthTips ? (
                          <div className="prose prose-sm dark:prose-invert whitespace-pre-wrap">
                              {healthTips}
                          </div>
                      ) : (
-                         <p className="text-muted-foreground text-center italic">Click "Generate Tips" again to get advice.</p>
-                    )}
-                </ScrollArea>
+                         <p className="text-muted-foreground text-center italic">Click "Generate Tips" to get advice.</p>
+                     )}
+                 </ScrollArea>
                  <DialogFooter>
                      <DialogClose asChild>
                          <Button type="button" variant="secondary">
                              Close
                          </Button>
-                    </DialogClose>
+                     </DialogClose>
+                      {/* Button inside dialog to generate/regenerate tips */}
                      <Button type="button" onClick={handleGetTips} disabled={isTipsLoading}>
-                        {isTipsLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BrainCircuit className="mr-2 h-4 w-4" />}
-                         Regenerate Tips
-                    </Button>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+                         {isTipsLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BrainCircuit className="mr-2 h-4 w-4" />}
+                         {healthTips ? 'Regenerate Tips' : 'Generate Tips'}
+                     </Button>
+                 </DialogFooter>
+             </DialogContent>
+         </Dialog>
 
 
         {/* Baby Planning Card */}
