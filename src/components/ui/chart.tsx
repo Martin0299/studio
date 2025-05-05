@@ -144,7 +144,8 @@ const ChartTooltipContent = React.forwardRef<
       const value =
         !labelKey && typeof label === "string"
           ? config[label as keyof typeof config]?.label || label
-          : itemConfig?.label
+          // Use item.payload.name if available (e.g., for cycle/period number)
+          : item.payload?.name || itemConfig?.label
 
       if (labelFormatter) {
         return (
@@ -190,6 +191,16 @@ const ChartTooltipContent = React.forwardRef<
             const itemConfig = getPayloadConfigFromPayload(config, item, key)
             const indicatorColor = color || item.payload.fill || item.color
 
+            // Pass the config entry for the tooltip content to use
+            const tooltipContentProps = {
+              ...item,
+              payload: {
+                  ...item.payload,
+                  config: itemConfig // Pass the corresponding config entry
+              }
+            };
+
+
             return (
               <div
                 key={item.dataKey}
@@ -199,7 +210,7 @@ const ChartTooltipContent = React.forwardRef<
                 )}
               >
                 {formatter && item?.value !== undefined && item.name ? (
-                  formatter(item.value, item.name, item, index, item.payload)
+                  formatter(item.value, item.name, tooltipContentProps, index, tooltipContentProps.payload) // Pass modified props
                 ) : (
                   <>
                     {itemConfig?.icon ? (
@@ -234,11 +245,12 @@ const ChartTooltipContent = React.forwardRef<
                     >
                       <div className="grid gap-1.5">
                         {nestLabel ? tooltipLabel : null}
+                        {/* Use config label if available, otherwise fallback */}
                         <span className="text-muted-foreground">
                           {itemConfig?.label || item.name}
                         </span>
                       </div>
-                      {item.value && (
+                      {item.value !== undefined && item.value !== null && ( // Check for undefined/null
                         <span className="font-mono font-medium tabular-nums text-foreground">
                           {item.value.toLocaleString()}
                         </span>
