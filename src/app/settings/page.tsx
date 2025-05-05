@@ -20,10 +20,11 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; // Import Select components
 import { useToast } from "@/hooks/use-toast";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Palette, Lock, Bell, FileDown, Trash2, CircleHelp } from 'lucide-react'; // Icons
-import { useCycleData } from '@/context/CycleDataContext'; // Import context
+import { Palette, Lock, Bell, Download, Trash2, CircleHelp, Languages } from 'lucide-react'; // Icons - Changed FileDown to Download, Added Languages
+import { useCycleData, LogData } from '@/context/CycleDataContext'; // Import context
 import { cn } from '@/lib/utils'; // Import cn
 import { parseISO, format, subDays, addDays, differenceInDays, isAfter, isEqual, isValid } from 'date-fns'; // Import date-fns functions
 import PinSetupDialog from '@/components/settings/PinSetupDialog'; // Import the new dialog
@@ -32,6 +33,7 @@ import { setPinStatus, getPinStatus, clearPinStatus } from '@/lib/security'; // 
 // Define theme type (Removed 'system')
 type Theme = 'light' | 'dark';
 type AccentColor = 'coral' | 'gold';
+type Language = 'en' | 'hu' | 'de'; // Define available languages
 
 export default function SettingsPage() {
     const { toast } = useToast();
@@ -41,6 +43,9 @@ export default function SettingsPage() {
     // -- Appearance State --
     const [theme, setTheme] = React.useState<Theme>('light');
     const [accentColor, setAccentColor] = React.useState<AccentColor>('coral');
+
+    // -- Language State --
+    const [language, setLanguage] = React.useState<Language>('en'); // Default to English
 
     // -- Cycle State (Derived from context) --
     const [avgCycleLength, setAvgCycleLength] = React.useState<number | null>(null);
@@ -55,7 +60,7 @@ export default function SettingsPage() {
     const [pinIsSet, setPinIsSet] = React.useState<boolean>(false); // State to track if PIN is set
     const [showPinDialog, setShowPinDialog] = React.useState<boolean>(false); // State for PIN dialog visibility
 
-    // --- Effects for Appearance, Reminders, and Security ---
+    // --- Effects for Appearance, Reminders, Security, and Language ---
 
     // Load settings from localStorage on mount
     React.useEffect(() => {
@@ -64,6 +69,8 @@ export default function SettingsPage() {
         const storedPeriodReminder = localStorage.getItem('periodReminder');
         const storedFertileReminder = localStorage.getItem('fertileReminder');
         const storedAppLock = localStorage.getItem('appLock');
+        const storedLanguage = localStorage.getItem('language') as Language | null;
+
 
         // Set theme
         if (storedTheme && ['light', 'dark'].includes(storedTheme)) {
@@ -79,6 +86,14 @@ export default function SettingsPage() {
         } else {
             setAccentColor('coral');
             localStorage.setItem('accentColor', 'coral');
+        }
+
+        // Set language
+        if (storedLanguage && ['en', 'hu', 'de'].includes(storedLanguage)) {
+            setLanguage(storedLanguage);
+        } else {
+            setLanguage('en'); // Default to English
+            localStorage.setItem('language', 'en');
         }
 
         // Set reminders
@@ -105,14 +120,22 @@ export default function SettingsPage() {
         root.classList.remove('light', 'dark');
         root.classList.add(theme);
         localStorage.setItem('theme', theme); // Save theme change to localStorage
-    }); // Removed dependency array to run on every render
+    }, [theme]); // Run only when theme changes
 
      // Apply accent color data attribute to HTML element
      React.useEffect(() => {
         const root = window.document.documentElement;
         root.setAttribute('data-accent', accentColor);
         localStorage.setItem('accentColor', accentColor); // Save accent change to localStorage
-    }); // Removed dependency array to run on every render
+    }, [accentColor]); // Run only when accentColor changes
+
+    // Apply language attribute to HTML element
+     React.useEffect(() => {
+        const root = window.document.documentElement;
+        root.setAttribute('lang', language);
+        localStorage.setItem('language', language); // Save language change to localStorage
+        // TODO: Integrate with an i18n library here to actually change UI text
+    }, [language]); // Run only when language changes
 
 
     // --- Effect for Cycle Calculations ---
@@ -139,6 +162,7 @@ export default function SettingsPage() {
 
               const isPeriodDay = entry?.periodFlow && entry.periodFlow !== 'none';
               const date = parseISO(entry.date);
+              if (!isValid(date)) return; // Skip invalid dates
 
               const prevDay = subDays(date, 1);
               const prevDayString = format(prevDay, 'yyyy-MM-dd');
@@ -164,12 +188,17 @@ export default function SettingsPage() {
                    const startIndex = sortedDates.indexOf(dateString);
                    for (let i = startIndex; i < sortedDates.length; i++) {
                         const currentDateString = sortedDates[i];
+                        if (!currentDateString) continue;
                         const currentDate = parseISO(currentDateString);
+                         if (!isValid(currentDate)) continue; // Skip invalid dates
+
                         const currentEntry = logData[currentDateString];
 
                         // Check if we've gone past a reasonable period duration or into the next cycle
                         if (differenceInDays(currentDate, date) > 20) break; // Limit search
-                        if (periodStartDates.length > cycleLengths.length + 1 && isAfter(currentDate, periodStartDates[periodStartDates.length-1])) break; // Stop if next cycle start is found
+                         // Check if we found the next period start date
+                         const nextPeriodIndex = periodStartDates.findIndex(startDate => isEqual(startDate, currentDate));
+                         if (nextPeriodIndex > periodStartDates.length - cycleLengths.length - 1) break; // Stop if next cycle start is found
 
                         // Found explicit end marker
                         if (currentEntry?.isPeriodEnd) {
@@ -189,13 +218,15 @@ export default function SettingsPage() {
 
                   // Determine the final end date
                   // If explicit end found, use it. Otherwise, use the last flow date unless it's the same as the start date (and start date wasn't marked as end), then assume 1 day.
-                  const finalEndDate = endDate ?? (isAfter(lastFlowDate, date) ? lastFlowDate : date);
+                   const finalEndDate = endDate ?? (isAfter(lastFlowDate, date) ? lastFlowDate : date);
 
-
-                  const length = differenceInDays(finalEndDate, date) + 1;
-                  if (length > 0 && length < 20) { // Basic validation
-                      periodLengths.push(length);
-                  }
+                  // Calculate length only if finalEndDate is valid and after or equal to start date
+                   if (isValid(finalEndDate) && !isBefore(finalEndDate, date)) {
+                     const length = differenceInDays(finalEndDate, date) + 1;
+                     if (length > 0 && length < 20) { // Basic validation
+                         periodLengths.push(length);
+                     }
+                   }
                  // --- End Period Length Calculation ---
              }
          });
@@ -220,6 +251,15 @@ export default function SettingsPage() {
         // localStorage handled by useEffect
         toast({ title: "Accent Color Updated", description: `Accent set to ${validAccent}.` });
     };
+
+     const handleLanguageChange = (newLanguage: string) => {
+        const validLanguage = newLanguage as Language;
+        setLanguage(validLanguage);
+        // localStorage handled by useEffect
+        toast({ title: "Language Updated", description: `Language set to ${validLanguage.toUpperCase()}. UI text update requires full i18n setup.` });
+        // TODO: Call i18n library function here
+    };
+
 
     const handlePeriodReminderChange = (checked: boolean) => {
         setPeriodReminder(checked);
@@ -279,10 +319,7 @@ export default function SettingsPage() {
         if (success) {
             setPinStatus(true); // Update storage flag
             setPinIsSet(true); // Update local state
-            toast({
-                title: "PIN Set Successfully",
-                description: "App Lock is now secured with your PIN.",
-            });
+            // Toast is handled within the PinSetupDialog for success/change
         } else {
             // Optional: Handle cancellation or failure if needed
             console.log("PIN setup cancelled or failed.");
@@ -298,16 +335,84 @@ export default function SettingsPage() {
         }
     };
 
+    // Function to create a downloadable file
+    const downloadFile = (filename: string, text: string, mimeType: string) => {
+        const element = document.createElement('a');
+        element.setAttribute('href', `${mimeType};charset=utf-8,${encodeURIComponent(text)}`);
+        element.setAttribute('download', filename);
+        element.style.display = 'none';
+        document.body.appendChild(element);
+        element.click();
+        document.body.removeChild(element);
+    };
 
-    const handleBackup = () => {
+
+     const handleBackup = () => {
         console.log("Backup initiated");
-        toast({ title: "Backup Not Implemented", description: "Data backup feature is coming soon.", variant: "destructive" });
+        try {
+            const backupData: Record<string, any> = {};
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                // Only back up cycle logs and relevant settings
+                if (key && (key.startsWith('cycleLog_') || ['theme', 'accentColor', 'language', 'periodReminder', 'fertileReminder', 'appLock', 'appPinStatus'].includes(key))) {
+                    backupData[key] = localStorage.getItem(key);
+                }
+            }
+
+            if (Object.keys(backupData).length === 0) {
+                toast({ title: "No Data", description: "No data found to back up.", variant: "default" });
+                return;
+            }
+
+            const jsonString = JSON.stringify(backupData, null, 2); // Pretty print JSON
+            const timestamp = format(new Date(), 'yyyyMMdd_HHmmss');
+            downloadFile(`lunabloom_backup_${timestamp}.json`, jsonString, 'data:application/json');
+            toast({ title: "Backup Successful", description: "Your data backup has been downloaded." });
+        } catch (error) {
+            console.error("Backup failed:", error);
+            toast({ title: "Backup Failed", description: "An error occurred during backup.", variant: "destructive" });
+        }
     };
 
     const handleExport = () => {
         console.log("Export initiated");
-        toast({ title: "Export Not Implemented", description: "Data export feature is coming soon.", variant: "destructive" });
+        try {
+            const logsToExport: LogData[] = Object.keys(logData)
+                .sort() // Sort by date string
+                .map(key => logData[key]);
+
+            if (logsToExport.length === 0) {
+                 toast({ title: "No Log Data", description: "No cycle log data found to export.", variant: "default" });
+                 return;
+            }
+
+            // Basic CSV structure
+            const headers = ["date", "periodFlow", "isPeriodEnd", "symptoms", "mood", "sexualActivityCount", "protectionUsed", "orgasm", "notes"];
+            const csvRows = [
+                headers.join(','), // Header row
+                ...logsToExport.map(log => [
+                    log.date,
+                    log.periodFlow ?? '',
+                    log.isPeriodEnd ? 'true' : 'false',
+                    `"${(log.symptoms ?? []).join('; ')}"`, // Join symptoms, quote for safety
+                    log.mood ?? '',
+                    log.sexualActivityCount ?? 0,
+                    log.protectionUsed !== undefined ? (log.protectionUsed ? 'true' : 'false') : '',
+                    log.orgasm !== undefined ? (log.orgasm ? 'true' : 'false') : '',
+                    `"${(log.notes ?? '').replace(/"/g, '""')}"` // Quote notes, escape double quotes
+                ].join(','))
+            ];
+            const csvString = csvRows.join('\n');
+            const timestamp = format(new Date(), 'yyyyMMdd_HHmmss');
+            downloadFile(`lunabloom_export_${timestamp}.csv`, csvString, 'data:text/csv');
+            toast({ title: "Export Successful", description: "Your cycle log data has been downloaded as CSV." });
+
+        } catch (error) {
+             console.error("Export failed:", error);
+             toast({ title: "Export Failed", description: "An error occurred during export.", variant: "destructive" });
+        }
     };
+
 
     const handleDeleteAllDataConfirmed = () => {
         deleteAllData();
@@ -355,28 +460,36 @@ export default function SettingsPage() {
              <Card>
                 <CardHeader>
                     <CardTitle className="text-lg flex items-center"><Bell className="mr-2 h-5 w-5 text-accent"/>Reminders</CardTitle>
-                    <CardDescription>Manage your cycle notifications. (Actual notifications require app setup)</CardDescription>
+                     <CardDescription>Manage your cycle notifications. (Actual notifications require app setup)</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    {/* Enabled */}
-                    <div className="flex items-center justify-between">
-                        <Label htmlFor="period-reminder" className="flex-1 pr-4">Period Start Prediction</Label>
-                        <Switch
-                            id="period-reminder"
-                            checked={periodReminder}
-                            onCheckedChange={handlePeriodReminderChange}
-                            aria-label="Toggle period start prediction reminder"
-                        />
-                    </div>
-                    <div className="flex items-center justify-between">
-                        <Label htmlFor="fertile-reminder" className="flex-1 pr-4">Fertile Window Start</Label>
-                         <Switch
-                            id="fertile-reminder"
-                            checked={fertileReminder}
-                            onCheckedChange={handleFertileReminderChange}
-                            aria-label="Toggle fertile window start reminder"
-                        />
-                    </div>
+                     <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-0.5">
+                            <FormLabel className="text-base flex items-center">Period Start Prediction</FormLabel>
+                             {/* No FormMessage needed here unless there's an error state */}
+                        </div>
+                         <FormControl>
+                            <Switch
+                                id="period-reminder-switch"
+                                checked={periodReminder}
+                                onCheckedChange={handlePeriodReminderChange}
+                                aria-label="Toggle period start prediction reminder"
+                            />
+                        </FormControl>
+                    </FormItem>
+                     <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                         <div className="space-y-0.5">
+                            <FormLabel className="text-base flex items-center">Fertile Window Start</FormLabel>
+                         </div>
+                         <FormControl>
+                             <Switch
+                                id="fertile-reminder-switch"
+                                checked={fertileReminder}
+                                onCheckedChange={handleFertileReminderChange}
+                                aria-label="Toggle fertile window start reminder"
+                            />
+                        </FormControl>
+                    </FormItem>
                 </CardContent>
             </Card>
 
@@ -398,7 +511,6 @@ export default function SettingsPage() {
                                 <RadioGroupItem value="dark" id="theme-dark" />
                                 <Label htmlFor="theme-dark">Dark</Label>
                             </div>
-                            {/* Removed System Option */}
                          </RadioGroup>
                      </div>
                       <div>
@@ -417,6 +529,28 @@ export default function SettingsPage() {
                 </CardContent>
             </Card>
 
+            {/* Language Settings */}
+            <Card>
+                <CardHeader>
+                    <CardTitle className="text-lg flex items-center"><Languages className="mr-2 h-5 w-5 text-accent"/>Language</CardTitle>
+                    <CardDescription>Choose your preferred language.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Select value={language} onValueChange={handleLanguageChange}>
+                        <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select Language" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="en">English</SelectItem>
+                            <SelectItem value="hu">Hungarian (Magyar)</SelectItem>
+                            <SelectItem value="de">German (Deutsch)</SelectItem>
+                        </SelectContent>
+                    </Select>
+                     <p className="text-xs text-muted-foreground mt-2">UI text update requires full internationalization (i18n) setup.</p>
+                </CardContent>
+            </Card>
+
+
              {/* Security - Enabled */}
             <Card>
                 <CardHeader>
@@ -424,15 +558,20 @@ export default function SettingsPage() {
                     <CardDescription>Protect access to your app with a PIN.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                     <div className="flex items-center justify-between">
-                        <Label htmlFor="app-lock" className="flex-1 pr-4">Enable App Lock</Label>
-                        <Switch
-                            id="app-lock"
-                            checked={appLock}
-                            onCheckedChange={handleAppLockChange}
-                            aria-label="Toggle app lock"
-                        />
-                    </div>
+                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-0.5">
+                            <FormLabel className="text-base flex items-center">Enable App Lock</FormLabel>
+                             {/* No FormMessage needed here */}
+                        </div>
+                         <FormControl>
+                            <Switch
+                                id="app-lock-switch"
+                                checked={appLock}
+                                onCheckedChange={handleAppLockChange}
+                                aria-label="Toggle app lock"
+                            />
+                        </FormControl>
+                    </FormItem>
                      {/* Button to Set/Change PIN */}
                      <Button
                         variant="outline"
@@ -456,15 +595,15 @@ export default function SettingsPage() {
                  <CardHeader>
                     <CardTitle className="text-lg">Local Data Management</CardTitle>
                     <CardDescription className="text-sm text-muted-foreground !mt-1">
-                        Your cycle data is stored locally on this device. Backup and Export are planned features. Deleting data here is permanent.
+                         Your data is stored locally. Backup creates a JSON file, Export creates a CSV file. Deleting data here is permanent.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <Button variant="outline" className="w-full flex items-center justify-center gap-2" onClick={handleBackup} disabled>
-                        <FileDown className="h-4 w-4" /> Backup Data (Soon)
+                    <Button variant="outline" className="w-full flex items-center justify-center gap-2" onClick={handleBackup}>
+                        <Download className="h-4 w-4" /> Backup Data (JSON)
                     </Button>
-                     <Button variant="outline" className="w-full flex items-center justify-center gap-2" onClick={handleExport} disabled>
-                        <FileDown className="h-4 w-4" /> Export Data (Soon)
+                     <Button variant="outline" className="w-full flex items-center justify-center gap-2" onClick={handleExport}>
+                        <Download className="h-4 w-4" /> Export Data (CSV)
                     </Button>
 
                     <Separator />
@@ -494,7 +633,7 @@ export default function SettingsPage() {
                                 <AlertDialogAction
                                     onClick={handleDeleteAllDataConfirmed}
                                     disabled={isDeleteDisabled} // Disable action based on input
-                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:bg-destructive/50 disabled:cursor-not-allowed"
+                                    className={cn(buttonVariants({ variant: "destructive" }), "disabled:bg-destructive/50 disabled:cursor-not-allowed")} // Use cn and buttonVariants
                                  >
                                     Delete Data
                                 </AlertDialogAction>
@@ -522,3 +661,17 @@ export default function SettingsPage() {
         </div>
     );
 }
+// Helper components from react-hook-form (minimal versions for context)
+// In a real app, these would likely come from a UI library or be more robust
+const Form = ({ children }: { children: React.ReactNode }) => <>{children}</>;
+const FormField = ({ children }: { children: React.ReactNode }) => <>{children}</>;
+const FormItem = ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>;
+const FormControl = ({ children }: { children: React.ReactNode }) => <>{children}</>;
+const FormLabel = ({ children, ...props }: React.LabelHTMLAttributes<HTMLLabelElement>) => <label {...props}>{children}</label>;
+const FormMessage = ({ children }: { children?: React.ReactNode }) => <>{children ? <p className="text-sm font-medium text-destructive">{children}</p> : null}</>;
+const FormDescription = ({ children, ...props }: React.HTMLAttributes<HTMLParagraphElement>) => <p className="text-[0.8rem] text-muted-foreground" {...props}>{children}</p>;
+
+// Export helpers if they aren't already exported by another component file
+export { Form, FormField, FormItem, FormControl, FormLabel, FormMessage, FormDescription };
+
+    
