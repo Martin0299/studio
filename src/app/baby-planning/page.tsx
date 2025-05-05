@@ -7,7 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { cn } from "@/lib/utils";
-import { BookOpen, HeartHandshake, Stethoscope, Utensils, Moon, Activity, MapPin, CalendarCheck2, Brain } from 'lucide-react';
+import { BookOpen, HeartHandshake, Stethoscope, Utensils, Moon, Activity, MapPin, CalendarCheck2, Brain, Baby } from 'lucide-react'; // Added Baby icon
 
 // Define the structure for checklist items
 interface ChecklistItem {
@@ -198,3 +198,4 @@ export default function BabyPlanningPage() {
     </div>
   );
 }
+
