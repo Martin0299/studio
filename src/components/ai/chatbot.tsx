@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { chatWithHealthVisitor } from '@/ai/flows/health-visitor-chat-flow';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button'; // Added buttonVariants import
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { SendHorizontal, User, Bot, Loader2, MicOff, Trash2 } from 'lucide-react'; // Added Trash2
