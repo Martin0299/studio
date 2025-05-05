@@ -32,13 +32,13 @@ import { cn } from '@/lib/utils'; // Import cn utility
 
 // Define symptom and mood options with icons
 const symptomOptions = [
-  { id: 'cramp', label: 'Cramps', icon: Zap },
+  { id: 'cramps', label: 'Cramps', icon: Zap },
   { id: 'headache', label: 'Headache', icon: CloudRain },
   { id: 'bloating', label: 'Bloating', icon: Wind },
-  { id: 'fatigue', label: 'Fatigue', icon: Activity }, // Example: using Activity icon for fatigue
-  { id: 'acne', label: 'Acne', icon: Snowflake }, // Example: using Snowflake icon for acne (placeholder)
-  { id: 'backache', label: 'Backache', icon: Flame }, // Changed to Flame
-  { id: 'nausea', label: 'Nausea', icon: ThermometerSun }, // Changed to ThermometerSun
+  { id: 'fatigue', label: 'Fatigue', icon: Activity },
+  { id: 'acne', label: 'Acne', icon: Snowflake },
+  { id: 'backache', label: 'Backache', icon: Flame },
+  { id: 'nausea', label: 'Nausea', icon: ThermometerSun },
 ];
 
 const moodOptions = [
@@ -268,66 +268,30 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
             <CardTitle className="text-lg">Symptoms</CardTitle>
           </CardHeader>
           <CardContent>
-             <FormField
+            <FormField
               control={form.control}
               name="symptoms"
-              render={({ field }) => (
+              render={() => (
                 <FormItem>
                   <div className="grid grid-cols-3 gap-3">
-                    {symptomOptions.map((item) => {
-                      const Icon = item.icon;
-                      const isChecked = field.value?.includes(item.id);
-                      const checkboxId = `symptom-checkbox-${item.id}`;
-                      const labelId = `symptom-label-${item.id}`;
-
-                      return (
-                        <div
-                          key={item.id}
-                          className={cn(
-                            "flex flex-col items-center space-y-1 border rounded-lg p-3 hover:bg-muted/50 transition-colors cursor-pointer",
-                            isChecked && "bg-accent/10 border-accent text-accent"
-                          )}
-                          onClick={() => {
-                             const currentSymptoms = field.value || [];
-                             const checked = !isChecked;
-                             let newSymptoms;
-                             if (checked) {
-                               newSymptoms = [...currentSymptoms, item.id];
-                             } else {
-                               newSymptoms = currentSymptoms.filter((value) => value !== item.id);
-                             }
-                             field.onChange(newSymptoms);
-                          }}
-                          role="checkbox"
-                          aria-checked={isChecked}
-                          aria-labelledby={labelId}
-                          tabIndex={0} // Make it focusable
-                           onKeyDown={(e) => {
-                               if (e.key === ' ' || e.key === 'Enter') {
-                                   e.preventDefault(); // Prevent default space/enter behavior
-                                   const currentSymptoms = field.value || [];
-                                   const checked = !isChecked;
-                                   let newSymptoms;
-                                   if (checked) {
-                                     newSymptoms = [...currentSymptoms, item.id];
-                                   } else {
-                                     newSymptoms = currentSymptoms.filter((value) => value !== item.id);
-                                   }
-                                   field.onChange(newSymptoms);
-                               }
-                           }}
-                        >
-                          <FormControl>
-                             {/* Hidden checkbox for semantics */}
-                             <Checkbox
-                                id={checkboxId} // Added ID
-                                checked={isChecked}
-                                onCheckedChange={(checkedState) => {
-                                  // This might not be strictly necessary if parent onClick handles state,
-                                  // but ensures direct interaction with checkbox also works.
+                    {symptomOptions.map((item) => (
+                      <FormField
+                        key={item.id}
+                        control={form.control}
+                        name="symptoms"
+                        render={({ field }) => {
+                          const Icon = item.icon;
+                          const isChecked = field.value?.includes(item.id) ?? false;
+                          return (
+                            <FormItem
+                              className={cn(
+                                "flex flex-col items-center space-y-1 border rounded-lg p-3 hover:bg-muted/50 transition-colors cursor-pointer",
+                                isChecked && "bg-accent/10 border-accent text-accent"
+                              )}
+                              onClick={() => { // Keep onClick for the whole item for better UX
                                   const currentSymptoms = field.value || [];
                                   let newSymptoms;
-                                  if (checkedState) {
+                                  if (!isChecked) {
                                     newSymptoms = [...currentSymptoms, item.id];
                                   } else {
                                     newSymptoms = currentSymptoms.filter(
@@ -335,24 +299,31 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
                                     );
                                   }
                                   field.onChange(newSymptoms);
-                                }}
-                                className="sr-only"
-                                tabIndex={-1} // Make hidden checkbox not focusable
-                                aria-hidden="true"
-                              />
-                          </FormControl>
-                           <Icon className={cn("h-6 w-6 mb-1", isChecked ? "text-accent" : "text-muted-foreground")} />
-                           {/* Use ui/label for consistency */}
-                          <Label
-                            id={labelId}
-                            htmlFor={checkboxId} // Link to hidden checkbox
-                            className="font-normal text-sm text-center cursor-pointer select-none" // Added select-none
-                          >
-                            {item.label}
-                          </Label>
-                        </div>
-                      );
-                    })}
+                              }}
+                            >
+                              <FormControl>
+                                <Checkbox
+                                  checked={isChecked}
+                                  onCheckedChange={(checkedState) => {
+                                    // Let FormItem onClick handle the logic change
+                                    // This avoids potential double state updates
+                                  }}
+                                  className="sr-only" // Keep it visually hidden but accessible
+                                  aria-hidden="true"
+                                  tabIndex={-1}
+                                />
+                              </FormControl>
+                              <Label htmlFor={`symptom-${item.id}`} className="flex flex-col items-center w-full cursor-pointer">
+                                <Icon className={cn("h-6 w-6 mb-1", isChecked ? "text-accent" : "text-muted-foreground")} />
+                                <span className="font-normal text-sm text-center select-none">{item.label}</span>
+                              </Label>
+                              {/* Assign a unique ID to the checkbox itself for the label */}
+                              <input type="checkbox" id={`symptom-${item.id}`} checked={isChecked} readOnly className="sr-only" />
+                            </FormItem>
+                          );
+                        }}
+                      />
+                    ))}
                   </div>
                   <FormMessage />
                 </FormItem>
