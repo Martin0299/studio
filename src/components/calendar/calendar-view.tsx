@@ -9,10 +9,10 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Button } from '@/components/ui/button';
-import { format as formatDateFns, parseISO, startOfDay, isBefore, isAfter, isEqual, addDays, subDays, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns'; // Aliased format
+import { Button, buttonVariants } from '@/components/ui/button'; // Import buttonVariants
+import { format as formatDateFns, parseISO, startOfDay, isBefore, isAfter, isEqual, addDays, subDays, startOfMonth, endOfMonth, eachDayOfInterval, isValid } from 'date-fns'; // Aliased format
 import Link from 'next/link';
-import { Droplet, Sparkles, HeartPulse, Smile, CloudRain, Zap, StickyNote, Info, CheckCircle, Wind, FlagOff, SmilePlus, ShieldCheck, Ban, Minus, Plus, ChevronLeft, ChevronRight, Anchor, Annoyed, Frown, Meh } from 'lucide-react'; // Added mood icons
+import { Droplet, Sparkles, HeartPulse, Smile, CloudRain, Zap, StickyNote, Info, CheckCircle, Wind, FlagOff, SmilePlus, ShieldCheck, Ban, Minus, Plus, ChevronLeft, ChevronRight, Anchor, Annoyed, Frown, Meh, Activity, Snowflake, ThermometerSun, Flame } from 'lucide-react'; // Added mood icons
 import { useCycleData, LogData } from '@/context/CycleDataContext';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -72,6 +72,7 @@ const calculateDayInfo = (date: Date, logs: Record<string, LogData>, allSortedPe
     for (const log of logsArray) {
         if (!log.date) continue; // Skip if date is missing (safety check)
         const logDate = parseISO(log.date);
+        if (!isValid(logDate)) continue; // Skip invalid dates
         // Check if logDate is after or equal to the start date AND if it's marked as the end
         if (!isBefore(logDate, lastPeriodStartDate) && log.isPeriodEnd) {
             // Additional check: ensure this end date corresponds to the current start date (no other start date in between)
@@ -203,7 +204,9 @@ export default function CalendarView() {
           .filter(log => {
               if (!log.date) return false; // Safety check
               try {
-                const prevDay = subDays(parseISO(log.date), 1);
+                const logDate = parseISO(log.date);
+                if (!isValid(logDate)) return false; // Filter invalid dates
+                const prevDay = subDays(logDate, 1);
                 const prevDayString = formatDateFns(prevDay, 'yyyy-MM-dd');
                 const prevLog = logData[prevDayString];
                 return !prevLog || !prevLog.periodFlow || prevLog.periodFlow === 'none';
@@ -213,6 +216,7 @@ export default function CalendarView() {
               }
           })
           .map(log => parseISO(log.date!)) // Use non-null assertion after filter
+          .filter(isValid) // Ensure only valid dates are mapped
           .sort((a, b) => a.getTime() - b.getTime());
   }, [logData]);
 
@@ -248,7 +252,7 @@ export default function CalendarView() {
     setPopoverOpen(true); // Open popover on day click
   };
 
-  const renderDayContent = (date: Date, displayMonth: Date): React.ReactNode => {
+   const renderDayContent = (date: Date, displayMonth: Date): React.ReactNode => {
     const normalizedDay = startOfDay(date);
     const dateString = formatDateFns(normalizedDay, 'yyyy-MM-dd');
     const isOutside = normalizedDay.getMonth() !== displayMonth.getMonth();
@@ -465,9 +469,13 @@ export default function CalendarView() {
 
   const getSymptomIcon = (symptom: string) => {
       switch(symptom.toLowerCase()) { // Case-insensitive matching
-          case 'cramp': return <Zap className="w-4 h-4 mr-1.5 text-yellow-500" />;
+          case 'cramps': return <Zap className="w-4 h-4 mr-1.5 text-yellow-500" />;
           case 'headache': return <CloudRain className="w-4 h-4 mr-1.5 text-blue-400" />;
           case 'bloating': return <Wind className="w-4 h-4 mr-1.5 text-purple-400" />;
+          case 'fatigue': return <Activity className="w-4 h-4 mr-1.5 text-gray-500" />;
+          case 'acne': return <Snowflake className="w-4 h-4 mr-1.5 text-cyan-400" />;
+          case 'backache': return <Flame className="w-4 h-4 mr-1.5 text-orange-500" />;
+          case 'nausea': return <ThermometerSun className="w-4 h-4 mr-1.5 text-lime-500" />;
           default: return <Info className="w-4 h-4 mr-1.5 text-gray-400" />;
       }
   }
@@ -492,7 +500,7 @@ export default function CalendarView() {
         selectedDayInfo.isPredictedPeriod ||
         (selectedDayInfo.loggedData && Object.keys(selectedDayInfo.loggedData).length > 1 &&
          Object.entries(selectedDayInfo.loggedData).some(([key, value]) =>
-            key !== 'date' && value !== undefined && value !== '' && value !== false && value !== 0 && (!Array.isArray(value) || value.length > 0)
+            key !== 'date' && value !== undefined && value !== '' && value !== 'none' && value !== false && value !== 0 && (!Array.isArray(value) || value.length > 0)
          ))
    );
 
@@ -538,7 +546,7 @@ export default function CalendarView() {
                     day_today: ' ', // Handled by DayContent
                     day_outside: ' ', // Handled by DayContent (renders dimmed number)
                     // Apply stricter disabled styling to ensure visual consistency
-                    day_disabled: 'text-muted-foreground/30 opacity-50 cursor-not-allowed',
+                    day_disabled: 'text-muted-foreground/30 opacity-50 cursor-not-allowed aria-disabled:cursor-not-allowed',
                     day_hidden: 'invisible',
                     // Range styles might interfere, reset them
                     day_range_start: ' ',
