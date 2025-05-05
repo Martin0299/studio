@@ -17,13 +17,14 @@ import {
   FormDescription // Import FormDescription
 } from '@/components/ui/form';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from "@/components/ui/label"; // Ensure Label is imported
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input'; // Import Input
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Switch } from '@/components/ui/switch';
-import { Droplet, Zap, CloudRain, Wind, Smile, StickyNote, ShieldCheck, Ban, FlagOff, HeartPulse, SmilePlus, Minus, Plus } from 'lucide-react'; // Added icons
+import { Droplet, Zap, CloudRain, Wind, Smile, StickyNote, ShieldCheck, Ban, FlagOff, HeartPulse, SmilePlus, Minus, Plus, Activity, Snowflake,thermometerSun, flame } from 'lucide-react'; // Added new icons
 import { useCycleData, LogData } from '@/context/CycleDataContext'; // Import context and LogData type
 import { useRouter } from 'next/navigation'; // Import useRouter
 import { cn } from '@/lib/utils'; // Import cn utility
@@ -33,7 +34,10 @@ const symptomOptions = [
   { id: 'cramp', label: 'Cramps', icon: Zap },
   { id: 'headache', label: 'Headache', icon: CloudRain },
   { id: 'bloating', label: 'Bloating', icon: Wind },
-  // Add more symptoms: Fatigue, Acne, Backache, Nausea etc.
+  { id: 'fatigue', label: 'Fatigue', icon: Activity }, // Example: using Activity icon for fatigue
+  { id: 'acne', label: 'Acne', icon: Snowflake }, // Example: using Snowflake icon for acne (placeholder)
+  { id: 'backache', label: 'Backache', icon: flame }, // Example: Placeholder
+  { id: 'nausea', label: 'Nausea', icon: thermometerSun }, // Example: Placeholder
 ];
 
 const moodOptions = [
@@ -66,8 +70,6 @@ const logEntrySchema = z.object({
     message: "Please specify if protection was used.",
     path: ["protectionUsed"], // Path of the error
 });
-// Removed the refine rule that prevents marking end of period without flow,
-// as the form now handles this interaction dynamically and on save.
 
 
 type LogEntryFormValues = z.infer<typeof logEntrySchema>;
@@ -146,39 +148,26 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
 
   // Watch fields to manage interactions
   const watchSexualActivityCount = form.watch('sexualActivityCount');
-  const watchPeriodFlow = form.watch('periodFlow');
-  const watchIsPeriodEnd = form.watch('isPeriodEnd');
 
-  // Effect to manage conditional fields based on activity count
-  React.useEffect(() => {
-      const activityOccurred = (watchSexualActivityCount ?? 0) > 0;
-      if (!activityOccurred) {
-          // If count is 0, reset protectionUsed and orgasm
-          form.setValue('protectionUsed', undefined, { shouldValidate: true });
-          form.setValue('orgasm', undefined, { shouldValidate: true });
-      } else {
-          // If count > 0 and fields were undefined, set to default false
+   // Effect to manage conditional fields based on activity count
+   React.useEffect(() => {
+       const activityOccurred = (watchSexualActivityCount ?? 0) > 0;
+       if (!activityOccurred) {
+           // If count is 0, reset protectionUsed and orgasm
+           // Use shouldValidate: false to prevent triggering validation unnecessarily when resetting
+           form.setValue('protectionUsed', undefined, { shouldValidate: false });
+           form.setValue('orgasm', undefined, { shouldValidate: false });
+       } else {
+           // If count > 0 and fields were undefined, set to default false
+           // Use shouldValidate: true here if needed, or rely on schema refinement
            if (form.getValues('protectionUsed') === undefined) {
                form.setValue('protectionUsed', false, { shouldValidate: true });
            }
            if (form.getValues('orgasm') === undefined) {
-                form.setValue('orgasm', false, { shouldValidate: true });
+                 form.setValue('orgasm', false, { shouldValidate: true });
            }
-      }
-  }, [watchSexualActivityCount, form]);
-
-
-    // REMOVED: Effect that linked isPeriodEnd and periodFlow
-    // React.useEffect(() => {
-    //     if (watchIsPeriodEnd && watchPeriodFlow === 'none') {
-    //         form.setValue('periodFlow', 'light', { shouldValidate: true }); // Default to light if ending period with no flow selected
-    //         toast({
-    //             title: "Flow Updated",
-    //             description: "Period flow set to 'Light' as you marked this as the end day.",
-    //             variant: "default"
-    //         });
-    //     }
-    // }, [watchIsPeriodEnd, watchPeriodFlow, form, toast]);
+       }
+   }, [watchSexualActivityCount, form]);
 
 
    if (isLoading) {
@@ -212,22 +201,19 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
                         variant="outline"
                         value={field.value} // Value directly corresponds to enum
                         onValueChange={(value) => {
-                            // If the same value is clicked again, it returns '', treat as 'none'
-                            // If no value is selected (deselected), default to 'none'
                             const newValue = value || 'none';
                             field.onChange(newValue as 'none' | 'light' | 'medium' | 'heavy');
                         }}
                         className="justify-start flex-wrap gap-2" // Added gap
                         >
-                         {/* Use 'none' as the value */}
-                         <ToggleGroupItem value="none" aria-label="No flow" className="flex flex-col h-auto p-2 border rounded-lg data-[state=on]:bg-secondary data-[state=on]:border-primary data-[state=on]:text-primary">
+                         <ToggleGroupItem value="none" aria-label="No flow" className="flex flex-col h-auto p-2 border rounded-lg data-[state=on]:bg-secondary data-[state=on]:border-muted-foreground data-[state=on]:text-muted-foreground">
                             <Ban className="h-5 w-5 mb-1"/> None
                         </ToggleGroupItem>
                         {flowOptions.map((option) => (
                             <ToggleGroupItem key={option.id} value={option.id} aria-label={option.label} className="flex flex-col h-auto p-2 border rounded-lg data-[state=on]:bg-primary/10 data-[state=on]:border-primary data-[state=on]:text-primary">
                                <div className="flex mb-1">
                                     {Array.from({ length: option.iconCount }).map((_, i) => (
-                                         <Droplet key={i} className="h-4 w-4 fill-current" /> // Removed text-primary, relies on parent state
+                                         <Droplet key={i} className="h-4 w-4 fill-current" />
                                     ))}
                                 </div>
                                 {option.label}
@@ -245,23 +231,22 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
                 name="isPeriodEnd"
                 render={({ field }) => (
                     <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                    <div className="space-y-0.5">
-                        <FormLabel className="text-base flex items-center">
-                         <FlagOff className="mr-2 h-5 w-5 text-red-600"/> Mark as Last Day of Period
-                        </FormLabel>
-                        <FormMessage className="text-xs" />
-                         <FormDescription className="text-xs">
-                            Marks this day as the end of your period flow.
-                         </FormDescription>
-                    </div>
-                    <FormControl>
-                        <Switch
-                            checked={field.value}
-                            onCheckedChange={field.onChange}
-                            // No longer explicitly disabled based on flow
-                            aria-label="Mark as Last Day of Period"
-                        />
-                    </FormControl>
+                        <div className="space-y-0.5">
+                            <FormLabel className="text-base flex items-center">
+                                <FlagOff className="mr-2 h-5 w-5 text-red-600"/> Mark as Last Day of Period
+                            </FormLabel>
+                            <FormDescription className="text-xs">
+                                Marks this day as the end of your period flow.
+                            </FormDescription>
+                             <FormMessage className="text-xs" />
+                        </div>
+                        <FormControl>
+                            <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                                aria-label="Mark as Last Day of Period"
+                            />
+                        </FormControl>
                     </FormItem>
                 )}
                 />
@@ -279,20 +264,20 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
               name="symptoms"
               render={({ field }) => (
                 <FormItem>
-                  <div className="grid grid-cols-3 gap-3"> {/* Slightly reduced gap */}
+                  <div className="grid grid-cols-3 gap-3">
                     {symptomOptions.map((item) => {
                       const Icon = item.icon;
                       const isChecked = field.value?.includes(item.id);
-                      const checkboxId = `symptom-checkbox-${item.id}`; // Unique ID for checkbox
-                      const labelId = `symptom-label-${item.id}`; // Unique ID for label
+                      const checkboxId = `symptom-checkbox-${item.id}`;
+                      const labelId = `symptom-label-${item.id}`;
                       return (
-                        <div // Use div instead of FormItem for better click area control
+                        <div
                           key={item.id}
                           className={cn(
                             "flex flex-col items-center space-y-1 border rounded-lg p-3 hover:bg-muted/50 transition-colors cursor-pointer",
                             isChecked && "bg-accent/10 border-accent text-accent"
                           )}
-                          onClick={() => { // Main click handler
+                          onClick={() => {
                               const currentSymptoms = field.value || [];
                               const checked = !isChecked;
                               if (checked) {
@@ -301,13 +286,13 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
                                   field.onChange(currentSymptoms.filter((value) => value !== item.id));
                               }
                           }}
-                          role="checkbox" // Role for accessibility
+                          role="checkbox"
                           aria-checked={isChecked}
-                          aria-labelledby={labelId} // Associate with label
-                          tabIndex={0} // Make it focusable
-                           onKeyDown={(e) => { // Keyboard support
+                          aria-labelledby={labelId}
+                          tabIndex={0}
+                           onKeyDown={(e) => {
                                if (e.key === ' ' || e.key === 'Enter') {
-                                   e.preventDefault(); // Prevent space scrolling
+                                   e.preventDefault();
                                    const currentSymptoms = field.value || [];
                                    const checked = !isChecked;
                                     if (checked) {
@@ -319,32 +304,25 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
                            }}
                         >
                           <FormControl className="sr-only">
-                            {/* Checkbox is visually hidden but necessary for forms/accessibility */}
                             <Checkbox
-                              id={checkboxId} // Assign unique ID
+                              id={checkboxId}
                               checked={isChecked}
-                              // This onChange might be redundant if div handles click, but keep for safety/semantics
-                              onCheckedChange={(checkedState) => {
-                                const currentSymptoms = field.value || [];
-                                if (checkedState) {
-                                  field.onChange([...currentSymptoms, item.id]);
-                                } else {
-                                  field.onChange(currentSymptoms.filter((value) => value !== item.id));
-                                }
-                              }}
-                              tabIndex={-1} // Remove from tab order as div handles it
-                              aria-hidden="true" // Hide from accessibility tree as div handles it
+                              // No onCheckedChange needed here as parent div handles it
+                              // Ensure Checkbox state is derived from parent logic
+                              tabIndex={-1}
+                              aria-hidden="true"
                             />
                           </FormControl>
                            <Icon className={cn("h-6 w-6 mb-1", isChecked ? "text-accent" : "text-muted-foreground")} />
-                          <FormLabel
-                            id={labelId} // Assign unique ID
-                            htmlFor={checkboxId} // Link to hidden checkbox
+                           {/* Use ui/label for consistency */}
+                          <Label
+                            id={labelId}
+                            htmlFor={checkboxId}
                             className="font-normal text-sm text-center cursor-pointer"
-                            onClick={(e) => e.stopPropagation()} // Prevent double toggle if label is clicked directly
+                            onClick={(e) => e.stopPropagation()} // Prevent double toggle
                           >
                             {item.label}
-                          </FormLabel>
+                          </Label>
                         </div>
                       );
                     })}
@@ -462,14 +440,14 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
                             <FormLabel className="text-base flex items-center">
                                 <ShieldCheck className="mr-2 h-5 w-5 text-green-600"/> Protection Used
                             </FormLabel>
-                            <FormMessage className="text-xs" /> {/* Show validation message here */}
+                             <FormMessage className="text-xs" />
                         </div>
                         <FormControl>
-                        <Switch
-                            checked={field.value ?? false} // Handle potential undefined state
-                            onCheckedChange={field.onChange}
-                            aria-label="Protection Used"
-                        />
+                            <Switch
+                                checked={field.value ?? false}
+                                onCheckedChange={field.onChange}
+                                aria-label="Protection Used"
+                            />
                         </FormControl>
                     </FormItem>
                     )}
@@ -483,14 +461,14 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
                             <FormLabel className="text-base flex items-center">
                                 <SmilePlus className="mr-2 h-5 w-5 text-pink-500"/> Orgasm Reached
                             </FormLabel>
-                            <FormMessage className="text-xs" />
+                             <FormMessage className="text-xs" />
                         </div>
                         <FormControl>
-                        <Switch
-                            checked={field.value ?? false} // Handle potential undefined state
-                            onCheckedChange={field.onChange}
-                            aria-label="Orgasm Reached"
-                        />
+                            <Switch
+                                checked={field.value ?? false}
+                                onCheckedChange={field.onChange}
+                                aria-label="Orgasm Reached"
+                            />
                         </FormControl>
                     </FormItem>
                     )}
