@@ -1,4 +1,5 @@
 
+
 // src/app/settings/page.tsx
 'use client'; // Required for interactions like toggles and buttons
 
@@ -545,28 +546,6 @@ export default function SettingsPage() {
                 </CardContent>
             </Card>
 
-            {/* Language Settings */}
-            <Card>
-                <CardHeader>
-                    <CardTitle className="text-lg flex items-center"><Languages className="mr-2 h-5 w-5 text-accent"/>Language</CardTitle>
-                    <CardDescription>Choose your preferred language.</CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <Select value={language} onValueChange={handleLanguageChange}>
-                        <SelectTrigger className="w-full">
-                            <SelectValue placeholder="Select Language" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="en">English</SelectItem>
-                            <SelectItem value="hu">Hungarian (Magyar)</SelectItem>
-                            <SelectItem value="de">German (Deutsch)</SelectItem>
-                        </SelectContent>
-                    </Select>
-                     <p className="text-xs text-muted-foreground mt-2">UI text update requires full internationalization (i18n) setup.</p>
-                </CardContent>
-            </Card>
-
-
              {/* Security - Enabled */}
             <Card>
                 <CardHeader>
@@ -681,4 +660,5 @@ export default function SettingsPage() {
 // Export helpers if they aren't already exported by another component file
 // Removed export { Form, FormField, FormItem, FormControl, FormLabel, FormMessage, FormDescription };
 // as they are defined locally for structure.
-    
+
+
