@@ -12,7 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { format as formatDateFns, parseISO, startOfDay, isBefore, isAfter, isEqual, addDays, subDays, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns'; // Aliased format
 import Link from 'next/link';
-import { Droplet, Sparkles, HeartPulse, Smile, CloudRain, Zap, StickyNote, Info, CheckCircle, Wind, FlagOff, SmilePlus, ShieldCheck, Ban, Minus, Plus, ChevronLeft, ChevronRight } from 'lucide-react'; // Added Chevron icons
+import { Droplet, Sparkles, HeartPulse, Smile, CloudRain, Zap, StickyNote, Info, CheckCircle, Wind, FlagOff, SmilePlus, ShieldCheck, Ban, Minus, Plus, ChevronLeft, ChevronRight, Anchor, Annoyed, Frown, Meh } from 'lucide-react'; // Added mood icons
 import { useCycleData, LogData } from '@/context/CycleDataContext';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -473,12 +473,12 @@ export default function CalendarView() {
   }
    const getMoodIcon = (mood: string) => {
        switch(mood.toLowerCase()) { // Case-insensitive matching
-          case 'irritable': return <Smile className="w-4 h-4 mr-1.5 text-orange-500" />;
-          case 'calm': return <Smile className="w-4 h-4 mr-1.5 text-green-500" />;
           case 'happy': return <Smile className="w-4 h-4 mr-1.5 text-yellow-400" />;
-          case 'sad': return <Smile className="w-4 h-4 mr-1.5 text-blue-500" />;
-          case 'anxious': return <Smile className="w-4 h-4 mr-1.5 text-purple-500" />;
-          default: return <Smile className="w-4 h-4 mr-1.5 text-gray-400" />;
+          case 'sad': return <Frown className="w-4 h-4 mr-1.5 text-blue-500" />;
+          case 'anxious': return <Meh className="w-4 h-4 mr-1.5 text-purple-500" />;
+          case 'irritable': return <Annoyed className="w-4 h-4 mr-1.5 text-orange-500" />;
+          case 'calm': return <Anchor className="w-4 h-4 mr-1.5 text-green-500" />;
+          default: return <Smile className="w-4 h-4 mr-1.5 text-gray-400" />; // Fallback happy icon
       }
   }
 
@@ -519,8 +519,8 @@ export default function CalendarView() {
                     // caption_label: "text-lg font-semibold text-foreground flex-grow text-center", // Label styling if needed
                     nav: "hidden", // Hide default nav buttons, use custom one in Caption
                     nav_button: cn(
-                        'inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
-                        'h-9 w-9 p-0 text-muted-foreground hover:text-foreground hover:bg-muted'
+                        buttonVariants({ variant: "outline" }),
+                        'h-9 w-9 p-0 text-muted-foreground hover:text-foreground hover:bg-muted' // Simplified
                     ),
                     // nav_button_previous: 'absolute left-4', // Adjusted in CustomCaption
                     // nav_button_next: 'absolute right-4', // Adjusted in CustomCaption

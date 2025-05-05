@@ -24,8 +24,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Switch } from '@/components/ui/switch';
-// Corrected icon imports
-import { Droplet, Zap, CloudRain, Wind, Smile, StickyNote, ShieldCheck, Ban, FlagOff, HeartPulse, SmilePlus, Minus, Plus, Activity, Snowflake, ThermometerSun, Flame } from 'lucide-react'; // Changed thermometerSun to ThermometerSun and flame to Flame
+// Corrected icon imports and added new mood icons
+import { Droplet, Zap, CloudRain, Wind, StickyNote, ShieldCheck, Ban, FlagOff, HeartPulse, SmilePlus, Minus, Plus, Activity, Snowflake, ThermometerSun, Flame, Smile, Frown, Meh, Annoyed, Anchor } from 'lucide-react'; // Changed thermometerSun to ThermometerSun and flame to Flame
 import { useCycleData, LogData } from '@/context/CycleDataContext'; // Import context and LogData type
 import { useRouter } from 'next/navigation'; // Import useRouter
 import { cn } from '@/lib/utils'; // Import cn utility
@@ -42,11 +42,11 @@ const symptomOptions = [
 ];
 
 const moodOptions = [
-  { id: 'happy', label: 'Happy', icon: Smile }, // Replace with specific mood icons later
-  { id: 'sad', label: 'Sad', icon: Smile },
-  { id: 'anxious', label: 'Anxious', icon: Smile },
-  { id: 'irritable', label: 'Irritable', icon: Smile },
-  { id: 'calm', label: 'Calm', icon: Smile },
+  { id: 'happy', label: 'Happy', icon: Smile },
+  { id: 'sad', label: 'Sad', icon: Frown },
+  { id: 'anxious', label: 'Anxious', icon: Meh },
+  { id: 'irritable', label: 'Irritable', icon: Annoyed },
+  { id: 'calm', label: 'Calm', icon: Anchor },
   // Add more moods
 ];
 
@@ -159,10 +159,11 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
            form.setValue('protectionUsed', undefined, { shouldValidate: false });
            form.setValue('orgasm', undefined, { shouldValidate: false });
        } else {
+           // If activity becomes > 0, ensure protectionUsed has a default value (e.g., false) if it was previously undefined.
            if (form.getValues('protectionUsed') === undefined) {
                form.setValue('protectionUsed', false, { shouldValidate: true });
            }
-           if (form.getValues('orgasm') === undefined) {
+            if (form.getValues('orgasm') === undefined) {
                  form.setValue('orgasm', false, { shouldValidate: true });
            }
        }
@@ -170,16 +171,7 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
 
    // Effect to manage isPeriodEnd based on periodFlow
    React.useEffect(() => {
-        // If flow is set to 'none', automatically uncheck 'isPeriodEnd'
-        // Only do this if the flow is *explicitly* changed to 'none',
-        // not if it was already 'none' and the user checked the box.
-        // This logic might need refinement based on desired UX.
-        // Current logic: If flow becomes none, isPeriodEnd is forced false.
-        // Consider if user should be allowed to mark end *even* with 'none' selected on that day.
-       if (watchPeriodFlow === 'none' && watchIsPeriodEnd) {
-           // form.setValue('isPeriodEnd', false, { shouldValidate: true });
-           // Commenting out the above line based on the requirement to allow marking end even with 'none' flow.
-       }
+        // Logic removed as per user request: Allow marking end even if flow is 'none'
    }, [watchPeriodFlow, watchIsPeriodEnd, form]);
 
 
@@ -257,20 +249,12 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
                              <FormMessage className="text-xs" />
                         </div>
                         <FormControl>
-                             {/* Revert Switch to standard HTML input temporarily */}
-                             <input
-                                type="checkbox"
-                                checked={field.value}
-                                onChange={field.onChange}
-                                className="form-checkbox h-5 w-5 text-primary rounded focus:ring-primary" // Basic styling
-                                aria-label="Mark as Last Day of Period"
-                              />
-                            {/* <Switch
+                           <Switch
                                 id={field.name} // Add id for accessibility if needed
                                 checked={field.value}
                                 onCheckedChange={field.onChange}
                                 aria-label="Mark as Last Day of Period"
-                            /> */}
+                            />
                         </FormControl>
                     </FormItem>
                 )}
@@ -284,33 +268,17 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
             <CardTitle className="text-lg">Symptoms</CardTitle>
           </CardHeader>
           <CardContent>
-            <FormField
+             <FormField
               control={form.control}
               name="symptoms"
-              render={() => ( // Removed field from render prop as we use getValues/setValue
+              render={({ field }) => (
                 <FormItem>
                   <div className="grid grid-cols-3 gap-3">
                     {symptomOptions.map((item) => {
                       const Icon = item.icon;
-                      // Read current value directly inside the map function
-                      const currentSymptoms = form.getValues('symptoms') || [];
-                      const isChecked = currentSymptoms.includes(item.id);
+                      const isChecked = field.value?.includes(item.id);
                       const checkboxId = `symptom-checkbox-${item.id}`;
                       const labelId = `symptom-label-${item.id}`;
-
-                      const handleClick = () => {
-                        const currentSymptoms = form.getValues('symptoms') || [];
-                        const checked = !isChecked;
-                        let newSymptoms;
-                        if (checked) {
-                          newSymptoms = [...currentSymptoms, item.id];
-                        } else {
-                          newSymptoms = currentSymptoms.filter((value) => value !== item.id);
-                        }
-                        // Use setValue to update the form state
-                        form.setValue('symptoms', newSymptoms, { shouldValidate: true, shouldDirty: true });
-                      };
-
 
                       return (
                         <div
@@ -319,7 +287,17 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
                             "flex flex-col items-center space-y-1 border rounded-lg p-3 hover:bg-muted/50 transition-colors cursor-pointer",
                             isChecked && "bg-accent/10 border-accent text-accent"
                           )}
-                          onClick={handleClick}
+                          onClick={() => {
+                             const currentSymptoms = field.value || [];
+                             const checked = !isChecked;
+                             let newSymptoms;
+                             if (checked) {
+                               newSymptoms = [...currentSymptoms, item.id];
+                             } else {
+                               newSymptoms = currentSymptoms.filter((value) => value !== item.id);
+                             }
+                             field.onChange(newSymptoms);
+                          }}
                           role="checkbox"
                           aria-checked={isChecked}
                           aria-labelledby={labelId}
@@ -327,28 +305,47 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
                            onKeyDown={(e) => {
                                if (e.key === ' ' || e.key === 'Enter') {
                                    e.preventDefault(); // Prevent default space/enter behavior
-                                   handleClick();
+                                   const currentSymptoms = field.value || [];
+                                   const checked = !isChecked;
+                                   let newSymptoms;
+                                   if (checked) {
+                                     newSymptoms = [...currentSymptoms, item.id];
+                                   } else {
+                                     newSymptoms = currentSymptoms.filter((value) => value !== item.id);
+                                   }
+                                   field.onChange(newSymptoms);
                                }
                            }}
                         >
-                          <FormControl className="sr-only">
-                             {/* Render a visually hidden checkbox for semantics if needed,
-                                 but control the state via the parent div's click */}
-                             <input
-                                type="checkbox"
-                                id={checkboxId}
+                          <FormControl>
+                             {/* Hidden checkbox for semantics */}
+                             <Checkbox
+                                id={checkboxId} // Added ID
                                 checked={isChecked}
+                                onCheckedChange={(checkedState) => {
+                                  // This might not be strictly necessary if parent onClick handles state,
+                                  // but ensures direct interaction with checkbox also works.
+                                  const currentSymptoms = field.value || [];
+                                  let newSymptoms;
+                                  if (checkedState) {
+                                    newSymptoms = [...currentSymptoms, item.id];
+                                  } else {
+                                    newSymptoms = currentSymptoms.filter(
+                                      (value) => value !== item.id
+                                    );
+                                  }
+                                  field.onChange(newSymptoms);
+                                }}
+                                className="sr-only"
                                 tabIndex={-1} // Make hidden checkbox not focusable
-                                readOnly // Prevent direct interaction
                                 aria-hidden="true"
-                                className="absolute opacity-0 pointer-events-none"
                               />
                           </FormControl>
                            <Icon className={cn("h-6 w-6 mb-1", isChecked ? "text-accent" : "text-muted-foreground")} />
                            {/* Use ui/label for consistency */}
                           <Label
                             id={labelId}
-                            // Don't link htmlFor to the hidden checkbox if parent handles click
+                            htmlFor={checkboxId} // Link to hidden checkbox
                             className="font-normal text-sm text-center cursor-pointer select-none" // Added select-none
                           >
                             {item.label}
@@ -474,20 +471,12 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
                              <FormMessage className="text-xs" />
                         </div>
                         <FormControl>
-                             {/* Revert Switch to standard HTML input temporarily */}
-                              <input
-                                type="checkbox"
-                                checked={field.value ?? false}
-                                onChange={field.onChange}
-                                className="form-checkbox h-5 w-5 text-primary rounded focus:ring-primary" // Basic styling
-                                aria-label="Protection Used"
-                              />
-                            {/* <Switch
+                            <Switch
                                 id={field.name + "-protection"} // Ensure unique ID
                                 checked={field.value ?? false}
                                 onCheckedChange={field.onChange}
                                 aria-label="Protection Used"
-                            /> */}
+                            />
                         </FormControl>
                     </FormItem>
                     )}
@@ -504,20 +493,12 @@ export default function LogEntryForm({ selectedDate }: LogEntryFormProps) {
                              <FormMessage className="text-xs" />
                         </div>
                         <FormControl>
-                             {/* Revert Switch to standard HTML input temporarily */}
-                             <input
-                                type="checkbox"
-                                checked={field.value ?? false}
-                                onChange={field.onChange}
-                                className="form-checkbox h-5 w-5 text-primary rounded focus:ring-primary" // Basic styling
-                                aria-label="Orgasm Reached"
-                              />
-                            {/* <Switch
+                            <Switch
                                 id={field.name + "-orgasm"} // Ensure unique ID
                                 checked={field.value ?? false}
                                 onCheckedChange={field.onChange}
                                 aria-label="Orgasm Reached"
-                            /> */}
+                            />
                         </FormControl>
                     </FormItem>
                     )}
