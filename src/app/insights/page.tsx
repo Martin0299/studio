@@ -28,6 +28,7 @@ import { useToast } from '@/hooks/use-toast'; // Import toast
 
 // Define cycle phases
 type CyclePhase = 'Period' | 'Follicular' | 'Fertile Window' | 'Luteal' | 'Unknown';
+const TIPS_STORAGE_KEY = 'healthTipsCache'; // Key for localStorage
 
 // Helper function to determine cycle phase for a given date
 const getCyclePhase = (
@@ -460,11 +461,20 @@ export default function InsightsPage() {
     }
   }, [logData, isLoading]);
 
+  // Load health tips from localStorage on mount
+  React.useEffect(() => {
+    const storedTips = localStorage.getItem(TIPS_STORAGE_KEY);
+    if (storedTips) {
+        setHealthTips(storedTips);
+    }
+  }, []);
+
 
   // Handler to fetch health tips
   const handleGetTips = async () => {
     setIsTipsLoading(true);
-    setHealthTips(''); // Clear previous tips
+    setHealthTips(''); // Clear previous tips visually, but localStorage clears below
+    localStorage.removeItem(TIPS_STORAGE_KEY); // Clear cache
     try {
         const currentPhase = getCyclePhase(
             startOfDay(new Date()),
@@ -488,6 +498,7 @@ export default function InsightsPage() {
             recentSymptoms: uniqueSymptoms.length > 0 ? uniqueSymptoms : undefined,
         });
         setHealthTips(tips);
+        localStorage.setItem(TIPS_STORAGE_KEY, tips); // Cache the new tips
     } catch (error) {
       console.error('Error fetching health tips:', error);
       toast({
@@ -575,7 +586,7 @@ export default function InsightsPage() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                         <Button variant="default" className="w-full bg-accent hover:bg-accent/90 text-accent-foreground" onClick={handleGetTips}>
+                         <Button variant="default" className="w-full bg-accent hover:bg-accent/90 text-accent-foreground" onClick={(e) => { e.stopPropagation(); handleGetTips(); }}> {/* Prevent triggering Dialog open when clicking button inside trigger */}
                              Generate Tips
                          </Button>
                     </CardContent>
