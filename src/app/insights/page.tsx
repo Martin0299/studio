@@ -693,7 +693,7 @@ export default function InsightsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center">
-             <Info className="mr-2 h-5 w-5 text-chart-3"/> Symptom Patterns
+             <Info className="mr-2 h-5 w-5 text-chart-3"/> Symptom Patterns (Total Count)
           </CardTitle>
            {insights.totalSymptomCount === 0 && <CardDescription className="!mt-1">Log symptoms regularly to uncover patterns.</CardDescription>}
            <CardDescription className="!mt-1 text-xs text-muted-foreground">Shows the total number of symptoms logged per cycle phase.</CardDescription>
@@ -744,3 +744,4 @@ export default function InsightsPage() {
     </div>
   );
 }
+
