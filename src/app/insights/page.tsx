@@ -15,7 +15,8 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button"; // Added Button
 import { ScrollArea } from "@/components/ui/scroll-area"; // Added ScrollArea for tips
-import { Droplet, CalendarDays, HeartPulse, Percent, Activity, LineChart, BarChart as BarChartIcon, Info, TrendingUp, TrendingDown, Minus as MinusIcon, BrainCircuit, Lightbulb, Loader2 } from 'lucide-react'; // Added trend icons, Info icon, BrainCircuit, Lightbulb, Loader2
+// Added Baby icon, HeartHandshake might be better if Baby isn't available
+import { Droplet, CalendarDays, HeartPulse, Percent, Activity, LineChart, BarChart as BarChartIcon, Info, TrendingUp, TrendingDown, Minus as MinusIcon, BrainCircuit, Lightbulb, Loader2, Baby, HeartHandshake } from 'lucide-react';
 import { useCycleData, LogData } from '@/context/CycleDataContext';
 import { differenceInDays, format, parseISO, addDays, subDays, isWithinInterval, isValid, isAfter, isEqual, startOfDay, isBefore } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -24,6 +25,7 @@ import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, LabelL
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { getMenstrualTips } from '@/ai/flows/menstrual-tips-flow'; // Import the new flow
 import { useToast } from '@/hooks/use-toast'; // Import toast
+import Link from 'next/link'; // Import Link
 
 
 // Define cycle phases
@@ -625,6 +627,28 @@ export default function InsightsPage() {
                 </DialogFooter>
             </DialogContent>
         </Dialog>
+
+
+        {/* Baby Planning Card */}
+        <Card className="shadow-md hover:shadow-lg transition-shadow md:col-span-2">
+            <CardHeader>
+                 {/* Use Baby icon if available, otherwise HeartHandshake */}
+                 <CardTitle className="text-xl flex items-center text-pink-600 dark:text-pink-400">
+                    <Baby className="mr-2 h-6 w-6"/> {/* Or HeartHandshake */}
+                    Baby Planning Center
+                </CardTitle>
+                 <CardDescription className="!mt-1 text-xs text-muted-foreground">
+                    Explore resources and checklists to help you prepare for conception.
+                </CardDescription>
+            </CardHeader>
+            <CardContent>
+                <Button variant="outline" className="w-full" asChild>
+                    <Link href="/baby-planning">
+                         Explore Planning Resources
+                    </Link>
+                </Button>
+            </CardContent>
+        </Card>
 
 
         {/* Cycle Summary Card */}
