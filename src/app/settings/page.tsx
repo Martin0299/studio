@@ -21,10 +21,9 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"; // Import Select components
 import { useToast } from "@/hooks/use-toast";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Palette, Lock, Bell, Download, Trash2, CircleHelp, Languages } from 'lucide-react'; // Icons - Changed FileDown to Download, Added Languages
+import { Palette, Lock, Bell, Download, Trash2, CircleHelp, Upload } from 'lucide-react'; // Icons - Added Upload
 import { useCycleData, LogData } from '@/context/CycleDataContext'; // Import context
 import { cn } from '@/lib/utils'; // Import cn
 import { parseISO, format, subDays, addDays, differenceInDays, isAfter, isEqual, isValid, isBefore } from 'date-fns'; // Import date-fns functions
@@ -34,7 +33,6 @@ import { setPinStatus, getPinStatus, clearPinStatus } from '@/lib/security'; // 
 // Define theme type (Removed 'system')
 type Theme = 'light' | 'dark';
 type AccentColor = 'coral' | 'gold';
-type Language = 'en' | 'hu' | 'de'; // Define available languages
 
 // Define helper components for Form structure (minimal versions)
 // In a real app, these would likely come from a UI library or be more robust
@@ -51,15 +49,13 @@ const FormDescription = ({ children, ...props }: React.HTMLAttributes<HTMLParagr
 
 export default function SettingsPage() {
     const { toast } = useToast();
-    const { deleteAllData, logData, isLoading: isCycleDataLoading } = useCycleData(); // Get delete function and logData from context
+    const { deleteAllData, logData, refreshData, isLoading: isCycleDataLoading } = useCycleData(); // Get delete/refresh function and logData from context
     const [deleteConfirmInput, setDeleteConfirmInput] = React.useState(''); // State for delete confirmation input
+    const [isImporting, setIsImporting] = React.useState(false); // State for import loading
 
     // -- Appearance State --
     const [theme, setTheme] = React.useState<Theme>('light');
     const [accentColor, setAccentColor] = React.useState<AccentColor>('coral');
-
-    // -- Language State --
-    const [language, setLanguage] = React.useState<Language>('en'); // Default to English
 
     // -- Cycle State (Derived from context) --
     const [avgCycleLength, setAvgCycleLength] = React.useState<number | null>(null);
@@ -74,7 +70,7 @@ export default function SettingsPage() {
     const [pinIsSet, setPinIsSet] = React.useState<boolean>(false); // State to track if PIN is set
     const [showPinDialog, setShowPinDialog] = React.useState<boolean>(false); // State for PIN dialog visibility
 
-    // --- Effects for Appearance, Reminders, Security, and Language ---
+    // --- Effects for Appearance, Reminders, Security ---
 
     // Load settings from localStorage on mount
     React.useEffect(() => {
@@ -83,7 +79,6 @@ export default function SettingsPage() {
         const storedPeriodReminder = localStorage.getItem('periodReminder');
         const storedFertileReminder = localStorage.getItem('fertileReminder');
         const storedAppLock = localStorage.getItem('appLock');
-        const storedLanguage = localStorage.getItem('language') as Language | null;
 
 
         // Set theme
@@ -100,14 +95,6 @@ export default function SettingsPage() {
         } else {
             setAccentColor('coral');
             localStorage.setItem('accentColor', 'coral');
-        }
-
-        // Set language
-        if (storedLanguage && ['en', 'hu', 'de'].includes(storedLanguage)) {
-            setLanguage(storedLanguage);
-        } else {
-            setLanguage('en'); // Default to English
-            localStorage.setItem('language', 'en');
         }
 
         // Set reminders
@@ -142,14 +129,6 @@ export default function SettingsPage() {
         root.setAttribute('data-accent', accentColor);
         localStorage.setItem('accentColor', accentColor); // Save accent change to localStorage
     }, [accentColor]); // Run only when accentColor changes
-
-    // Apply language attribute to HTML element
-     React.useEffect(() => {
-        const root = window.document.documentElement;
-        root.setAttribute('lang', language);
-        localStorage.setItem('language', language); // Save language change to localStorage
-        // TODO: Integrate with an i18n library here to actually change UI text
-    }, [language]); // Run only when language changes
 
 
     // --- Effect for Cycle Calculations ---
@@ -266,14 +245,6 @@ export default function SettingsPage() {
         toast({ title: "Accent Color Updated", description: `Accent set to ${validAccent}.` });
     };
 
-     const handleLanguageChange = (newLanguage: string) => {
-        const validLanguage = newLanguage as Language;
-        setLanguage(validLanguage);
-        // localStorage handled by useEffect
-        toast({ title: "Language Updated", description: `Language set to ${validLanguage.toUpperCase()}. UI text update requires full i18n setup.` });
-        // TODO: Call i18n library function here
-    };
-
 
     const handlePeriodReminderChange = (checked: boolean) => {
         setPeriodReminder(checked);
@@ -368,7 +339,7 @@ export default function SettingsPage() {
             for (let i = 0; i < localStorage.length; i++) {
                 const key = localStorage.key(i);
                 // Only back up cycle logs and relevant settings
-                if (key && (key.startsWith('cycleLog_') || ['theme', 'accentColor', 'language', 'periodReminder', 'fertileReminder', 'appLock', 'appPinStatus'].includes(key))) {
+                if (key && (key.startsWith('cycleLog_') || ['theme', 'accentColor', 'periodReminder', 'fertileReminder', 'appLock', 'appPinStatus'].includes(key))) {
                      const value = localStorage.getItem(key);
                     if (value !== null) { // Ensure value is not null
                         backupData[key] = value;
@@ -428,6 +399,121 @@ export default function SettingsPage() {
              console.error("Export failed:", error);
              toast({ title: "Export Failed", description: "An error occurred during export.", variant: "destructive" });
         }
+    };
+
+    // Handler for the Import button click
+    const handleImportClick = () => {
+        // Trigger the hidden file input
+        document.getElementById('import-file-input')?.click();
+    };
+
+     // Handler for file selection
+     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) {
+            return;
+        }
+
+        setIsImporting(true);
+        const reader = new FileReader();
+
+        reader.onload = (e) => {
+            try {
+                const text = e.target?.result as string;
+                if (!text) {
+                    throw new Error("File is empty or could not be read.");
+                }
+                const importedData = JSON.parse(text);
+
+                // Validate the structure (basic check)
+                if (typeof importedData !== 'object' || importedData === null) {
+                    throw new Error("Invalid file format. Expected a JSON object.");
+                }
+
+                // Clear existing data before importing (optional, consider user choice)
+                // deleteAllData(); // You might want to confirm this with the user first
+
+                // Import the data into localStorage
+                let importedCount = 0;
+                let settingsImportedCount = 0;
+                for (const key in importedData) {
+                    if (Object.prototype.hasOwnProperty.call(importedData, key)) {
+                        // Only import keys that match the expected format/types
+                        if (key.startsWith('cycleLog_') || ['theme', 'accentColor', 'periodReminder', 'fertileReminder', 'appLock', 'appPinStatus', 'appPinHash'].includes(key)) {
+                            // Basic validation for cycleLog entries
+                            if (key.startsWith('cycleLog_')) {
+                                const entry = importedData[key];
+                                if (typeof entry === 'string') { // Assume stringified JSON
+                                    try {
+                                        const parsedEntry = JSON.parse(entry);
+                                        if (parsedEntry && typeof parsedEntry === 'object' && parsedEntry.date) {
+                                             localStorage.setItem(key, entry); // Store original stringified entry
+                                             importedCount++;
+                                        } else {
+                                            console.warn(`Skipping invalid cycle log entry for key ${key}`);
+                                        }
+                                    } catch {
+                                        console.warn(`Skipping non-JSON cycle log entry for key ${key}`);
+                                    }
+                                } else if (entry && typeof entry === 'object' && entry.date) {
+                                     localStorage.setItem(key, JSON.stringify(entry)); // Stringify object entries
+                                     importedCount++;
+                                } else {
+                                    console.warn(`Skipping invalid cycle log entry format for key ${key}`);
+                                }
+                            } else {
+                                // Simple validation for settings
+                                const value = importedData[key];
+                                if (typeof value === 'string' || typeof value === 'boolean') {
+                                    localStorage.setItem(key, typeof value === 'boolean' ? JSON.stringify(value) : value);
+                                    settingsImportedCount++;
+                                } else {
+                                    console.warn(`Skipping invalid setting format for key ${key}`);
+                                }
+                            }
+                        } else {
+                            console.warn(`Skipping unrecognized key during import: ${key}`);
+                        }
+                    }
+                }
+
+                toast({
+                    title: "Import Successful",
+                    description: `Imported ${importedCount} log entries and ${settingsImportedCount} settings. Please refresh the app if changes aren't reflected immediately.`,
+                });
+
+                // Refresh the data in the context to reflect imported logs
+                refreshData();
+
+                // Reload the page to apply imported settings (theme, accent, lock etc.)
+                window.location.reload();
+
+            } catch (error: any) {
+                console.error("Import failed:", error);
+                toast({
+                    title: "Import Failed",
+                    description: error.message || "An error occurred during import. Please ensure the file is a valid JSON backup.",
+                    variant: "destructive",
+                });
+            } finally {
+                setIsImporting(false);
+                // Reset file input value to allow importing the same file again if needed
+                event.target.value = '';
+            }
+        };
+
+        reader.onerror = () => {
+             console.error("Error reading file:", reader.error);
+             toast({
+                title: "Import Failed",
+                description: "Could not read the selected file.",
+                variant: "destructive",
+             });
+             setIsImporting(false);
+             event.target.value = '';
+        };
+
+        reader.readAsText(file);
     };
 
 
@@ -590,10 +676,32 @@ export default function SettingsPage() {
                  <CardHeader>
                     <CardTitle className="text-lg">Local Data Management</CardTitle>
                     <CardDescription className="text-sm text-muted-foreground !mt-1">
-                         Your data is stored locally. Backup creates a JSON file, Export creates a CSV file. Deleting data here is permanent.
+                         Your data is stored locally. Backup creates a JSON file, Export creates a CSV file. Import replaces current data. Deleting data here is permanent.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                    {/* Hidden file input for import */}
+                     <Input
+                        id="import-file-input"
+                        type="file"
+                        accept=".json"
+                        className="hidden"
+                        onChange={handleFileChange}
+                    />
+                    {/* Import Button */}
+                    <Button
+                        variant="outline"
+                        className="w-full flex items-center justify-center gap-2"
+                        onClick={handleImportClick}
+                        disabled={isImporting}
+                    >
+                         {isImporting ? (
+                            <><CircleHelp className="animate-spin h-4 w-4 mr-2" /> Importing...</>
+                         ) : (
+                             <><Upload className="h-4 w-4" /> Import Data (JSON)</>
+                         )}
+                    </Button>
+
                     <Button variant="outline" className="w-full flex items-center justify-center gap-2" onClick={handleBackup}>
                         <Download className="h-4 w-4" /> Backup Data (JSON)
                     </Button>
@@ -660,5 +768,6 @@ export default function SettingsPage() {
 // Export helpers if they aren't already exported by another component file
 // Removed export { Form, FormField, FormItem, FormControl, FormLabel, FormMessage, FormDescription };
 // as they are defined locally for structure.
+
 
 
