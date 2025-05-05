@@ -6,10 +6,21 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { SendHorizontal, User, Bot, Loader2, MicOff } from 'lucide-react'; // Added MicOff for limit
+import { SendHorizontal, User, Bot, Loader2, MicOff, Trash2 } from 'lucide-react'; // Added Trash2
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"; // Added AlertDialog components
 
 interface Message {
   id: string;
@@ -38,6 +49,10 @@ export default function Chatbot() {
           const parsedMessages = JSON.parse(storedMessages);
           // Basic validation
           if (Array.isArray(parsedMessages) && parsedMessages.length > 0) {
+              // Ensure the first message is always the initial bot message if history is loaded
+              if (parsedMessages[0]?.id !== initialMessage.id) {
+                  return [initialMessage, ...parsedMessages];
+              }
               return parsedMessages;
           }
         } catch (error) {
@@ -60,7 +75,7 @@ export default function Chatbot() {
 
   // Function to check and update message limit
   const checkAndUpdateLimit = React.useCallback(() => {
-    if (typeof window === 'undefined') return { currentCount: 0, today: format(new Date(), 'yyyy-MM-dd') }; // Guard for SSR/initial render
+    if (typeof window === 'undefined') return { currentCount: 0, today: format(new Date(), 'yyyy-MM-dd'), limitReached: false }; // Ensure limitReached is returned
 
     const today = format(new Date(), 'yyyy-MM-dd');
     const lastDate = localStorage.getItem(LAST_MESSAGE_DATE_KEY);
@@ -97,11 +112,16 @@ export default function Chatbot() {
       });
     }
     // Save messages to localStorage whenever they change
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && messages.length > 0) { // Only save if there are messages
       try {
         // Filter out temporary loading messages before saving
         const messagesToSave = messages.filter(msg => !(typeof msg.text !== 'string' && msg.id.startsWith('bot-loading-')));
-        localStorage.setItem(CHAT_MESSAGES_KEY, JSON.stringify(messagesToSave));
+        // Don't save if only the initial message exists
+        if (messagesToSave.length === 1 && messagesToSave[0].id === initialMessage.id) {
+             localStorage.removeItem(CHAT_MESSAGES_KEY); // Clear storage if only initial message left
+        } else if (messagesToSave.length > 0) {
+             localStorage.setItem(CHAT_MESSAGES_KEY, JSON.stringify(messagesToSave));
+        }
       } catch (error) {
         console.error("Error saving chat messages to localStorage:", error);
       }
@@ -110,6 +130,18 @@ export default function Chatbot() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInput(e.target.value);
+  };
+
+  const handleClearHistory = () => {
+    setMessages([initialMessage]);
+     if (typeof window !== 'undefined') {
+        localStorage.removeItem(CHAT_MESSAGES_KEY);
+     }
+     toast({
+        title: "Chat Cleared",
+        description: "Your conversation history has been cleared.",
+     });
+     inputRef.current?.focus(); // Refocus input after clearing
   };
 
   const handleSubmit = async (e?: React.FormEvent<HTMLFormElement>) => {
@@ -231,23 +263,53 @@ export default function Chatbot() {
         </div>
       </ScrollArea>
       <div className="border-t p-4">
-        <form onSubmit={handleSubmit} className="flex items-center gap-2">
-          <Input
-            ref={inputRef}
-            type="text"
-            placeholder={isLimitReached ? "Daily message limit reached" : "Ask Luna a question..."}
-            value={input}
-            onChange={handleInputChange}
-            disabled={isLoading || isLimitReached}
-            className="flex-1"
-            autoComplete="off"
-          />
-          <Button type="submit" size="icon" variant="default" className="bg-accent hover:bg-accent/90" disabled={isLoading || !input.trim() || isLimitReached}>
-             {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : isLimitReached ? <MicOff className="h-4 w-4"/> : <SendHorizontal className="h-4 w-4" />}
-             <span className="sr-only">{isLimitReached ? "Limit Reached" : "Send message"}</span>
-          </Button>
-        </form>
-         <p className="text-xs text-muted-foreground mt-2 text-center">
+        <div className="flex items-center gap-2 mb-2"> {/* Wrapper for input and send button */}
+             <form onSubmit={handleSubmit} className="flex flex-1 items-center gap-2">
+                <Input
+                    ref={inputRef}
+                    type="text"
+                    placeholder={isLimitReached ? "Daily message limit reached" : "Ask Luna a question..."}
+                    value={input}
+                    onChange={handleInputChange}
+                    disabled={isLoading || isLimitReached}
+                    className="flex-1"
+                    autoComplete="off"
+                />
+                <Button type="submit" size="icon" variant="default" className="bg-accent hover:bg-accent/90" disabled={isLoading || !input.trim() || isLimitReached}>
+                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : isLimitReached ? <MicOff className="h-4 w-4"/> : <SendHorizontal className="h-4 w-4" />}
+                    <span className="sr-only">{isLimitReached ? "Limit Reached" : "Send message"}</span>
+                </Button>
+             </form>
+             {/* Clear History Button */}
+             <AlertDialog>
+                <AlertDialogTrigger asChild>
+                     <Button
+                        type="button"
+                        size="icon"
+                        variant="outline"
+                        disabled={messages.length <= 1} // Disable if only initial message exists
+                     >
+                        <Trash2 className="h-4 w-4" />
+                        <span className="sr-only">Clear Chat History</span>
+                    </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Clear Chat History?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This will permanently delete your current conversation. Are you sure?
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleClearHistory} className={cn(buttonVariants({ variant: "destructive" }))}>
+                            Clear History
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+             </AlertDialog>
+        </div>
+         <p className="text-xs text-muted-foreground mt-1 text-center"> {/* Reduced margin-top */}
              {isLimitReached
                 ? `Daily message limit (${MAX_DAILY_MESSAGES}) reached. Please check back tomorrow.`
                 : `You have ${MAX_DAILY_MESSAGES - messageCount} messages left today. Luna is an AI assistant. Information provided is not medical advice. Consult a healthcare professional for medical concerns.`
