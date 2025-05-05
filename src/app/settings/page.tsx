@@ -3,7 +3,7 @@
 'use client'; // Required for interactions like toggles and buttons
 
 import * as React from 'react';
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button"; // Import buttonVariants
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,7 +26,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Palette, Lock, Bell, Download, Trash2, CircleHelp, Languages } from 'lucide-react'; // Icons - Changed FileDown to Download, Added Languages
 import { useCycleData, LogData } from '@/context/CycleDataContext'; // Import context
 import { cn } from '@/lib/utils'; // Import cn
-import { parseISO, format, subDays, addDays, differenceInDays, isAfter, isEqual, isValid } from 'date-fns'; // Import date-fns functions
+import { parseISO, format, subDays, addDays, differenceInDays, isAfter, isEqual, isValid, isBefore } from 'date-fns'; // Import date-fns functions
 import PinSetupDialog from '@/components/settings/PinSetupDialog'; // Import the new dialog
 import { setPinStatus, getPinStatus, clearPinStatus } from '@/lib/security'; // Import PIN utility functions
 
@@ -34,6 +34,19 @@ import { setPinStatus, getPinStatus, clearPinStatus } from '@/lib/security'; // 
 type Theme = 'light' | 'dark';
 type AccentColor = 'coral' | 'gold';
 type Language = 'en' | 'hu' | 'de'; // Define available languages
+
+// Define helper components for Form structure (minimal versions)
+// In a real app, these would likely come from a UI library or be more robust
+const Form = ({ children }: { children: React.ReactNode }) => <>{children}</>;
+const FormField = ({ children }: { children: React.ReactNode }) => <>{children}</>;
+const FormItem = ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>;
+const FormControl = ({ children }: { children: React.ReactNode }) => <>{children}</>;
+// Update FormLabel to accept htmlFor
+const FormLabel = ({ children, htmlFor, ...props }: React.LabelHTMLAttributes<HTMLLabelElement> & { htmlFor?: string }) => <label htmlFor={htmlFor} {...props}>{children}</label>;
+const FormMessage = ({ children }: { children?: React.ReactNode }) => <>{children ? <p className="text-sm font-medium text-destructive">{children}</p> : null}</>;
+const FormDescription = ({ children, ...props }: React.HTMLAttributes<HTMLParagraphElement>) => <p className="text-[0.8rem] text-muted-foreground" {...props}>{children}</p>;
+
+
 
 export default function SettingsPage() {
     const { toast } = useToast();
@@ -355,7 +368,10 @@ export default function SettingsPage() {
                 const key = localStorage.key(i);
                 // Only back up cycle logs and relevant settings
                 if (key && (key.startsWith('cycleLog_') || ['theme', 'accentColor', 'language', 'periodReminder', 'fertileReminder', 'appLock', 'appPinStatus'].includes(key))) {
-                    backupData[key] = localStorage.getItem(key);
+                     const value = localStorage.getItem(key);
+                    if (value !== null) { // Ensure value is not null
+                        backupData[key] = value;
+                     }
                 }
             }
 
@@ -465,7 +481,7 @@ export default function SettingsPage() {
                 <CardContent className="space-y-4">
                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                         <div className="space-y-0.5">
-                            <FormLabel className="text-base flex items-center">Period Start Prediction</FormLabel>
+                            <FormLabel htmlFor="period-reminder-switch" className="text-base flex items-center">Period Start Prediction</FormLabel>
                              {/* No FormMessage needed here unless there's an error state */}
                         </div>
                          <FormControl>
@@ -479,7 +495,7 @@ export default function SettingsPage() {
                     </FormItem>
                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                          <div className="space-y-0.5">
-                            <FormLabel className="text-base flex items-center">Fertile Window Start</FormLabel>
+                            <FormLabel htmlFor="fertile-reminder-switch" className="text-base flex items-center">Fertile Window Start</FormLabel>
                          </div>
                          <FormControl>
                              <Switch
@@ -560,7 +576,7 @@ export default function SettingsPage() {
                 <CardContent className="space-y-4">
                     <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                         <div className="space-y-0.5">
-                            <FormLabel className="text-base flex items-center">Enable App Lock</FormLabel>
+                            <FormLabel htmlFor="app-lock-switch" className="text-base flex items-center">Enable App Lock</FormLabel>
                              {/* No FormMessage needed here */}
                         </div>
                          <FormControl>
@@ -661,17 +677,8 @@ export default function SettingsPage() {
         </div>
     );
 }
-// Helper components from react-hook-form (minimal versions for context)
-// In a real app, these would likely come from a UI library or be more robust
-const Form = ({ children }: { children: React.ReactNode }) => <>{children}</>;
-const FormField = ({ children }: { children: React.ReactNode }) => <>{children}</>;
-const FormItem = ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>;
-const FormControl = ({ children }: { children: React.ReactNode }) => <>{children}</>;
-const FormLabel = ({ children, ...props }: React.LabelHTMLAttributes<HTMLLabelElement>) => <label {...props}>{children}</label>;
-const FormMessage = ({ children }: { children?: React.ReactNode }) => <>{children ? <p className="text-sm font-medium text-destructive">{children}</p> : null}</>;
-const FormDescription = ({ children, ...props }: React.HTMLAttributes<HTMLParagraphElement>) => <p className="text-[0.8rem] text-muted-foreground" {...props}>{children}</p>;
 
 // Export helpers if they aren't already exported by another component file
-export { Form, FormField, FormItem, FormControl, FormLabel, FormMessage, FormDescription };
-
+// Removed export { Form, FormField, FormItem, FormControl, FormLabel, FormMessage, FormDescription };
+// as they are defined locally for structure.
     
