@@ -3,13 +3,28 @@
 
 import * as React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Droplet, CalendarDays, HeartPulse, Percent, Activity, LineChart, BarChart as BarChartIcon, Info, TrendingUp, TrendingDown, Minus as MinusIcon } from 'lucide-react'; // Added trend icons, Info icon
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+    DialogFooter, // Added Footer
+    DialogClose, // Added Close
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button"; // Added Button
+import { ScrollArea } from "@/components/ui/scroll-area"; // Added ScrollArea for tips
+import { Droplet, CalendarDays, HeartPulse, Percent, Activity, LineChart, BarChart as BarChartIcon, Info, TrendingUp, TrendingDown, Minus as MinusIcon, BrainCircuit, Lightbulb, Loader2 } from 'lucide-react'; // Added trend icons, Info icon, BrainCircuit, Lightbulb, Loader2
 import { useCycleData, LogData } from '@/context/CycleDataContext';
 import { differenceInDays, format, parseISO, addDays, subDays, isWithinInterval, isValid, isAfter, isEqual, startOfDay, isBefore } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, LabelList } from 'recharts'; // Added LabelList
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
+import { getMenstrualTips } from '@/ai/flows/menstrual-tips-flow'; // Import the new flow
+import { useToast } from '@/hooks/use-toast'; // Import toast
+
 
 // Define cycle phases
 type CyclePhase = 'Period' | 'Follicular' | 'Fertile Window' | 'Luteal' | 'Unknown';
@@ -202,7 +217,8 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
         if (!isValid(startDate)) return; // Skip invalid start dates
         let endDate: Date | null = null;
         let lastFlowDate = startDate;
-        const searchLimit = addDays(startDate, 20);
+        const searchLimit = addDays(startDate, 20); // Limit search to avoid infinite loops on bad data
+        let foundExplicitEnd = false;
 
         for (let d = 0; d < sortedDates.length; d++) {
             const currentDateString = sortedDates[d];
@@ -210,38 +226,53 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
             if (!currentEntry?.date) continue; // Skip incomplete entries
 
             const currentDate = startOfDay(parseISO(currentEntry.date));
-            if (!isValid(currentDate) || !isAfter(currentDate, startDate)) {
-                // Handle same-day end case
-                 if (isEqual(currentDate, startDate) && currentEntry.isPeriodEnd) {
+            if (!isValid(currentDate)) continue;
+
+             // Skip dates before or exactly on the start date
+            if (!isAfter(currentDate, startDate)) {
+                // Handle edge case: if the *start date itself* is marked as the end
+                if (isEqual(currentDate, startDate) && currentEntry.isPeriodEnd) {
                     endDate = currentDate;
+                    foundExplicitEnd = true;
                     break;
                  }
-                continue;
+                 continue;
             }
-             if (isAfter(currentDate, searchLimit)) break;
 
+            // Stop searching if we've gone too far or found the next period start
+            if (isAfter(currentDate, searchLimit)) break;
+            const isNextPeriodStart = periodStartDates.some(nextStart => isEqual(currentDate, nextStart) && !isEqual(nextStart, startDate));
+            if (isNextPeriodStart) break;
+
+             // Check for explicit end marker
              if (currentEntry.isPeriodEnd) {
                 endDate = currentDate;
+                foundExplicitEnd = true;
                 break;
              }
+
+             // Track the last day flow was recorded if no explicit end found yet
              if (currentEntry.periodFlow && currentEntry.periodFlow !== 'none') {
                  lastFlowDate = currentDate;
              }
         }
 
-        if (!endDate) {
-             if (!isEqual(startDate, lastFlowDate) || logData[format(startDate, 'yyyy-MM-dd')]?.isPeriodEnd) {
-                endDate = lastFlowDate;
-             } else {
-                 endDate = startDate; // Period is 1 day if only start day had flow/marker
-             }
-        }
 
-        if (endDate && isValid(endDate)) {
-             const length = differenceInDays(endDate, startDate) + 1;
-             if (length > 0 && length < 20) {
+        // Determine final end date:
+        // 1. Use explicit end marker if found.
+        // 2. Otherwise, use the last day flow was recorded.
+        // 3. If no flow was recorded *after* the start day, and no end marker, assume 1-day period.
+        const finalEndDate = foundExplicitEnd ? endDate : (isAfter(lastFlowDate, startDate) ? lastFlowDate : startDate);
+
+        if (finalEndDate && isValid(finalEndDate)) {
+             const length = differenceInDays(finalEndDate, startDate) + 1;
+             if (length > 0 && length < 20) { // Basic validation
                  periodLengthsData.push(length);
+             } else {
+                 console.warn(`Calculated period length (${length}) outside expected range for start date ${format(startDate, 'yyyy-MM-dd')}. Skipping.`);
              }
+        } else {
+            console.warn(`Could not determine valid end date for period starting ${format(startDate, 'yyyy-MM-dd')}`);
         }
     });
 
@@ -415,6 +446,9 @@ const CustomTooltipContent = ({ active, payload, label }: any) => {
 export default function InsightsPage() {
   const { logData, isLoading } = useCycleData();
   const [insights, setInsights] = React.useState(() => calculateCycleInsights({}));
+  const [healthTips, setHealthTips] = React.useState<string>('');
+  const [isTipsLoading, setIsTipsLoading] = React.useState(false);
+  const { toast } = useToast();
 
  React.useEffect(() => {
     if (!isLoading && logData) {
@@ -425,6 +459,46 @@ export default function InsightsPage() {
         setInsights(calculateCycleInsights({}));
     }
   }, [logData, isLoading]);
+
+
+  // Handler to fetch health tips
+  const handleGetTips = async () => {
+    setIsTipsLoading(true);
+    setHealthTips(''); // Clear previous tips
+    try {
+        const currentPhase = getCyclePhase(
+            startOfDay(new Date()),
+            Object.values(logData)
+                .filter(log => log.periodFlow && log.periodFlow !== 'none' && log.date)
+                .map(log => parseISO(log.date!))
+                .filter(isValid)
+                .sort((a, b) => a.getTime() - b.getTime()),
+            insights.avgCycleLength,
+            insights.avgPeriodLength
+        );
+
+        const relevantSymptoms = Object.entries(logData)
+            .sort(([dateA], [dateB]) => parseISO(dateA).getTime() - parseISO(dateB).getTime())
+            .slice(-7) // Look at last 7 days
+            .flatMap(([, log]) => log.symptoms || []);
+        const uniqueSymptoms = [...new Set(relevantSymptoms)];
+
+        const { tips } = await getMenstrualTips({
+            currentPhase: currentPhase !== 'Unknown' ? currentPhase : undefined,
+            recentSymptoms: uniqueSymptoms.length > 0 ? uniqueSymptoms : undefined,
+        });
+        setHealthTips(tips);
+    } catch (error) {
+      console.error('Error fetching health tips:', error);
+      toast({
+        title: 'Error',
+        description: 'Could not fetch health tips at this time.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsTipsLoading(false);
+    }
+  };
 
   // Prepare chart data, ensuring it uses the structure expected by charts
   const cycleLengthChartData = React.useMemo(() => insights.cycleLengths.map(item => ({
@@ -487,6 +561,60 @@ export default function InsightsPage() {
       <h1 className="text-3xl font-bold text-center mb-8">Your Cycle Insights</h1>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        {/* Get Health Tips Card */}
+        <Dialog>
+            <DialogTrigger asChild>
+                 <Card className="shadow-md hover:shadow-lg transition-shadow cursor-pointer bg-gradient-to-br from-accent/10 to-primary/10 md:col-span-2">
+                    <CardHeader>
+                        <CardTitle className="text-xl flex items-center text-accent">
+                            <Lightbulb className="mr-2 h-6 w-6"/> Get Personalized Health Tips
+                        </CardTitle>
+                        <CardDescription className="!mt-1 text-xs">
+                             Receive AI-powered tips related to your cycle phase, symptoms, nutrition, and well-being.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                         <Button variant="default" className="w-full bg-accent hover:bg-accent/90 text-accent-foreground" onClick={handleGetTips}>
+                             Generate Tips
+                         </Button>
+                    </CardContent>
+                </Card>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center"><Lightbulb className="mr-2 h-5 w-5 text-accent" /> Health & Wellness Tips</DialogTitle>
+                    <DialogDescription>
+                        General tips based on common menstrual health knowledge. Remember, this is not medical advice.
+                    </DialogDescription>
+                </DialogHeader>
+                <ScrollArea className="max-h-[60vh] p-4 border rounded-md my-4"> {/* Added ScrollArea */}
+                     {isTipsLoading ? (
+                        <div className="flex justify-center items-center h-40">
+                             <Loader2 className="h-8 w-8 animate-spin text-accent" />
+                        </div>
+                    ) : healthTips ? (
+                         <div className="prose prose-sm dark:prose-invert whitespace-pre-wrap">
+                             {healthTips}
+                         </div>
+                     ) : (
+                         <p className="text-muted-foreground text-center italic">Click "Generate Tips" again to get advice.</p>
+                    )}
+                </ScrollArea>
+                 <DialogFooter>
+                     <DialogClose asChild>
+                         <Button type="button" variant="secondary">
+                             Close
+                         </Button>
+                    </DialogClose>
+                     <Button type="button" onClick={handleGetTips} disabled={isTipsLoading}>
+                        {isTipsLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BrainCircuit className="mr-2 h-4 w-4" />}
+                         Regenerate Tips
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+
 
         {/* Cycle Summary Card */}
         <Card className="shadow-md hover:shadow-lg transition-shadow">
@@ -573,7 +701,7 @@ export default function InsightsPage() {
                 <div className="flex justify-between"><span>Frequency:</span> <span className="font-semibold">{insights.activityFrequency > 0 ? `${insights.activityFrequency.toFixed(0)}% of days` : 'N/A'}</span></div>
                  <div className="flex justify-between"><span>Protection Rate:</span> <span className="font-semibold">
                     {insights.protectionRate !== null
-                        ? `${insights.protectionRate.toFixed(0)}% of days`
+                        ? `${insights.protectionRate.toFixed(0)}% of active days` // Clarified label
                         : 'N/A'}
                  </span></div>
             </CardContent>
