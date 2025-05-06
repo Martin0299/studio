@@ -1,5 +1,3 @@
-
-
 // src/app/settings/page.tsx
 'use client'; // Required for interactions like toggles and buttons
 
@@ -23,16 +21,20 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Palette, Lock, Bell, Download, Trash2, CircleHelp, Upload } from 'lucide-react'; // Icons - Added Upload
+import { Palette, Lock, Bell, Download, Trash2, CircleHelp, Upload, Languages } from 'lucide-react'; // Icons - Added Upload
 import { useCycleData, LogData } from '@/context/CycleDataContext'; // Import context
 import { cn } from '@/lib/utils'; // Import cn
 import { parseISO, format, subDays, addDays, differenceInDays, isAfter, isEqual, isValid, isBefore } from 'date-fns'; // Import date-fns functions
 import PinSetupDialog from '@/components/settings/PinSetupDialog'; // Import the new dialog
 import { setPinStatus, getPinStatus, clearPinStatus } from '@/lib/security'; // Import PIN utility functions
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
 
 // Define theme type (Removed 'system')
 type Theme = 'light' | 'dark';
 type AccentColor = 'coral' | 'gold';
+type Language = 'en' | 'hu' | 'de';
+
 
 // Define helper components for Form structure (minimal versions)
 // In a real app, these would likely come from a UI library or be more robust
@@ -70,6 +72,10 @@ export default function SettingsPage() {
     const [pinIsSet, setPinIsSet] = React.useState<boolean>(false); // State to track if PIN is set
     const [showPinDialog, setShowPinDialog] = React.useState<boolean>(false); // State for PIN dialog visibility
 
+    // -- Language State --
+    const [language, setLanguage] = React.useState<Language>('en');
+
+
     // --- Effects for Appearance, Reminders, Security ---
 
     // Load settings from localStorage on mount
@@ -79,6 +85,7 @@ export default function SettingsPage() {
         const storedPeriodReminder = localStorage.getItem('periodReminder');
         const storedFertileReminder = localStorage.getItem('fertileReminder');
         const storedAppLock = localStorage.getItem('appLock');
+        const storedLanguage = localStorage.getItem('language') as Language | null;
 
 
         // Set theme
@@ -113,6 +120,15 @@ export default function SettingsPage() {
             setPinIsSet(false);
         }
 
+         // Set language
+         if (storedLanguage && ['en', 'hu', 'de'].includes(storedLanguage)) {
+            setLanguage(storedLanguage);
+        } else {
+            setLanguage('en');
+            localStorage.setItem('language', 'en');
+        }
+
+
     }, []);
 
     // Apply theme class to HTML element
@@ -129,6 +145,15 @@ export default function SettingsPage() {
         root.setAttribute('data-accent', accentColor);
         localStorage.setItem('accentColor', accentColor); // Save accent change to localStorage
     }, [accentColor]); // Run only when accentColor changes
+
+    // Apply language attribute to HTML element
+    React.useEffect(() => {
+        document.documentElement.lang = language;
+        localStorage.setItem('language', language);
+        // Here you would typically integrate with an i18n library to change UI text
+        // For example, using i18next: i18n.changeLanguage(language);
+        console.log(`Language set to ${language}. UI text update requires full i18n setup.`);
+    }, [language]);
 
 
     // --- Effect for Cycle Calculations ---
@@ -245,6 +270,16 @@ export default function SettingsPage() {
         toast({ title: "Accent Color Updated", description: `Accent set to ${validAccent}.` });
     };
 
+    const handleLanguageChange = (newLanguage: string) => {
+        const validLanguage = newLanguage as Language;
+        setLanguage(validLanguage);
+        // localStorage and document.lang handled by useEffect
+        toast({
+            title: "Language Updated",
+            description: `Language set to ${validLanguage}. (UI text update needs full i18n setup)`
+        });
+    };
+
 
     const handlePeriodReminderChange = (checked: boolean) => {
         setPeriodReminder(checked);
@@ -322,13 +357,16 @@ export default function SettingsPage() {
 
     // Function to create a downloadable file
     const downloadFile = (filename: string, text: string, mimeType: string) => {
+        const blob = new Blob([text], { type: mimeType });
+        const url = URL.createObjectURL(blob);
         const element = document.createElement('a');
-        element.setAttribute('href', `${mimeType};charset=utf-8,${encodeURIComponent(text)}`);
+        element.setAttribute('href', url);
         element.setAttribute('download', filename);
         element.style.display = 'none';
         document.body.appendChild(element);
         element.click();
         document.body.removeChild(element);
+        URL.revokeObjectURL(url); // Clean up the object URL
     };
 
 
@@ -339,7 +377,7 @@ export default function SettingsPage() {
             for (let i = 0; i < localStorage.length; i++) {
                 const key = localStorage.key(i);
                 // Only back up cycle logs and relevant settings
-                if (key && (key.startsWith('cycleLog_') || ['theme', 'accentColor', 'periodReminder', 'fertileReminder', 'appLock', 'appPinStatus'].includes(key))) {
+                if (key && (key.startsWith('cycleLog_') || ['theme', 'accentColor', 'periodReminder', 'fertileReminder', 'appLock', 'appPinStatus', 'appPinHash', 'language', 'healthTipsCache'].includes(key))) {
                      const value = localStorage.getItem(key);
                     if (value !== null) { // Ensure value is not null
                         backupData[key] = value;
@@ -354,7 +392,7 @@ export default function SettingsPage() {
 
             const jsonString = JSON.stringify(backupData, null, 2); // Pretty print JSON
             const timestamp = format(new Date(), 'yyyyMMdd_HHmmss');
-            downloadFile(`lunabloom_backup_${timestamp}.json`, jsonString, 'data:application/json');
+            downloadFile(`lunabloom_backup_${timestamp}.json`, jsonString, 'application/json');
             toast({ title: "Backup Successful", description: "Your data backup has been downloaded." });
         } catch (error) {
             console.error("Backup failed:", error);
@@ -392,7 +430,7 @@ export default function SettingsPage() {
             ];
             const csvString = csvRows.join('\n');
             const timestamp = format(new Date(), 'yyyyMMdd_HHmmss');
-            downloadFile(`lunabloom_export_${timestamp}.csv`, csvString, 'data:text/csv');
+            downloadFile(`lunabloom_export_${timestamp}.csv`, csvString, 'text/csv');
             toast({ title: "Export Successful", description: "Your cycle log data has been downloaded as CSV." });
 
         } catch (error) {
@@ -439,7 +477,7 @@ export default function SettingsPage() {
                 for (const key in importedData) {
                     if (Object.prototype.hasOwnProperty.call(importedData, key)) {
                         // Only import keys that match the expected format/types
-                        if (key.startsWith('cycleLog_') || ['theme', 'accentColor', 'periodReminder', 'fertileReminder', 'appLock', 'appPinStatus', 'appPinHash'].includes(key)) {
+                        if (key.startsWith('cycleLog_') || ['theme', 'accentColor', 'periodReminder', 'fertileReminder', 'appLock', 'appPinStatus', 'appPinHash', 'language', 'healthTipsCache'].includes(key)) {
                             // Basic validation for cycleLog entries
                             if (key.startsWith('cycleLog_')) {
                                 const entry = importedData[key];
@@ -768,6 +806,7 @@ export default function SettingsPage() {
 // Export helpers if they aren't already exported by another component file
 // Removed export { Form, FormField, FormItem, FormControl, FormLabel, FormMessage, FormDescription };
 // as they are defined locally for structure.
+
 
 
 
