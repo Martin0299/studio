@@ -21,19 +21,17 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Palette, Lock, Bell, Download, Trash2, CircleHelp, Upload, Languages } from 'lucide-react'; // Icons - Added Upload
+import { Palette, Lock, Bell, Download, Trash2, CircleHelp, Upload } from 'lucide-react'; // Icons - Added Upload
 import { useCycleData, LogData } from '@/context/CycleDataContext'; // Import context
 import { cn } from '@/lib/utils'; // Import cn
-import { parseISO, format, subDays, addDays, differenceInDays, isAfter, isEqual, isValid, isBefore } from 'date-fns'; // Import date-fns functions
+import { format } from 'date-fns'; // Import date-fns functions
 import PinSetupDialog from '@/components/settings/PinSetupDialog'; // Import the new dialog
 import { setPinStatus, getPinStatus, clearPinStatus } from '@/lib/security'; // Import PIN utility functions
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 
 // Define theme type (Removed 'system')
 type Theme = 'light' | 'dark';
 type AccentColor = 'coral' | 'gold';
-type Language = 'en' | 'hu' | 'de';
 
 
 // Define helper components for Form structure (minimal versions)
@@ -51,7 +49,7 @@ const FormDescription = ({ children, ...props }: React.HTMLAttributes<HTMLParagr
 
 export default function SettingsPage() {
     const { toast } = useToast();
-    const { deleteAllData, logData, refreshData, isLoading: isCycleDataLoading } = useCycleData(); // Get delete/refresh function and logData from context
+    const { deleteAllData, logData, refreshData } = useCycleData(); // Get delete/refresh function and logData from context
     const [deleteConfirmInput, setDeleteConfirmInput] = React.useState(''); // State for delete confirmation input
     const [isImporting, setIsImporting] = React.useState(false); // State for import loading
 
@@ -59,9 +57,6 @@ export default function SettingsPage() {
     const [theme, setTheme] = React.useState<Theme>('light');
     const [accentColor, setAccentColor] = React.useState<AccentColor>('coral');
 
-    // -- Cycle State (Derived from context) --
-    const [avgCycleLength, setAvgCycleLength] = React.useState<number | null>(null);
-    const [avgPeriodLength, setAvgPeriodLength] = React.useState<number | null>(null);
 
     // -- Reminder State --
     const [periodReminder, setPeriodReminder] = React.useState<boolean>(true);
@@ -71,9 +66,6 @@ export default function SettingsPage() {
     const [appLock, setAppLock] = React.useState<boolean>(false);
     const [pinIsSet, setPinIsSet] = React.useState<boolean>(false); // State to track if PIN is set
     const [showPinDialog, setShowPinDialog] = React.useState<boolean>(false); // State for PIN dialog visibility
-
-    // -- Language State --
-    const [language, setLanguage] = React.useState<Language>('en');
 
 
     // --- Effects for Appearance, Reminders, Security ---
@@ -85,7 +77,6 @@ export default function SettingsPage() {
         const storedPeriodReminder = localStorage.getItem('periodReminder');
         const storedFertileReminder = localStorage.getItem('fertileReminder');
         const storedAppLock = localStorage.getItem('appLock');
-        const storedLanguage = localStorage.getItem('language') as Language | null;
 
 
         // Set theme
@@ -120,14 +111,6 @@ export default function SettingsPage() {
             setPinIsSet(false);
         }
 
-         // Set language
-         if (storedLanguage && ['en', 'hu', 'de'].includes(storedLanguage)) {
-            setLanguage(storedLanguage);
-        } else {
-            setLanguage('en');
-            localStorage.setItem('language', 'en');
-        }
-
 
     }, []);
 
@@ -146,113 +129,7 @@ export default function SettingsPage() {
         localStorage.setItem('accentColor', accentColor); // Save accent change to localStorage
     }, [accentColor]); // Run only when accentColor changes
 
-    // Apply language attribute to HTML element
-    React.useEffect(() => {
-        document.documentElement.lang = language;
-        localStorage.setItem('language', language);
-        // Here you would typically integrate with an i18n library to change UI text
-        // For example, using i18next: i18n.changeLanguage(language);
-        console.log(`Language set to ${language}. UI text update requires full i18n setup.`);
-    }, [language]);
 
-
-    // --- Effect for Cycle Calculations ---
-     React.useEffect(() => {
-         if (isCycleDataLoading || !logData) return; // Don't calculate if loading or no data
-
-         const periodStartDates: Date[] = [];
-         const periodLengths: number[] = [];
-         const cycleLengths: number[] = [];
-
-         const sortedDates = Object.keys(logData)
-             .filter(dateString => {
-                 try {
-                     return isValid(parseISO(dateString));
-                 } catch {
-                     return false; // Filter out invalid date strings safely
-                 }
-             })
-             .sort((a, b) => parseISO(a).getTime() - parseISO(b).getTime());
-
-          sortedDates.forEach((dateString) => {
-              const entry = logData[dateString];
-              if (!entry || !entry.date) return;
-
-              const isPeriodDay = entry?.periodFlow && entry.periodFlow !== 'none';
-              const date = parseISO(entry.date);
-              if (!isValid(date)) return; // Skip invalid dates
-
-              const prevDay = subDays(date, 1);
-              const prevDayString = format(prevDay, 'yyyy-MM-dd');
-              const prevLog = logData[prevDayString];
-              const isPeriodStart = isPeriodDay && (!prevLog || !prevLog.periodFlow || prevLog.periodFlow === 'none');
-
-              if (isPeriodStart) {
-                 periodStartDates.push(date);
-                 if (periodStartDates.length > 1) {
-                     const previousStartDate = periodStartDates[periodStartDates.length - 2];
-                     const cycleLength = differenceInDays(date, previousStartDate);
-                      if (cycleLength > 10 && cycleLength < 100) { // Basic validation
-                         cycleLengths.push(cycleLength);
-                     }
-                 }
-
-                 // --- Calculate Period Length for the period starting 'date' ---
-                  let endDate: Date | null = null;
-                  let lastFlowDate = date; // Initialize with the start date
-                  let foundExplicitEnd = false;
-
-                  // Iterate forwards from the start date within the sorted log entries
-                   const startIndex = sortedDates.indexOf(dateString);
-                   for (let i = startIndex; i < sortedDates.length; i++) {
-                        const currentDateString = sortedDates[i];
-                        if (!currentDateString) continue;
-                        const currentDate = parseISO(currentDateString);
-                         if (!isValid(currentDate)) continue; // Skip invalid dates
-
-                        const currentEntry = logData[currentDateString];
-
-                        // Check if we've gone past a reasonable period duration or into the next cycle
-                        if (differenceInDays(currentDate, date) > 20) break; // Limit search
-                         // Check if we found the next period start date
-                         const nextPeriodIndex = periodStartDates.findIndex(startDate => isEqual(startDate, currentDate));
-                         if (nextPeriodIndex > periodStartDates.length - cycleLengths.length - 1) break; // Stop if next cycle start is found
-
-                        // Found explicit end marker
-                        if (currentEntry?.isPeriodEnd) {
-                            endDate = currentDate;
-                            foundExplicitEnd = true;
-                            break;
-                        }
-
-                        // Track last day with flow if no explicit end marker found yet
-                        if (!foundExplicitEnd && currentEntry?.periodFlow && currentEntry.periodFlow !== 'none') {
-                             if (isAfter(currentDate, lastFlowDate)) {
-                                lastFlowDate = currentDate;
-                             }
-                        }
-                   }
-
-
-                  // Determine the final end date
-                  // If explicit end found, use it. Otherwise, use the last flow date unless it's the same as the start date (and start date wasn't marked as end), then assume 1 day.
-                   const finalEndDate = endDate ?? (isAfter(lastFlowDate, date) ? lastFlowDate : date);
-
-                  // Calculate length only if finalEndDate is valid and after or equal to start date
-                   if (isValid(finalEndDate) && !isBefore(finalEndDate, date)) {
-                     const length = differenceInDays(finalEndDate, date) + 1;
-                     if (length > 0 && length < 20) { // Basic validation
-                         periodLengths.push(length);
-                     }
-                   }
-                 // --- End Period Length Calculation ---
-             }
-         });
-
-         setAvgCycleLength(cycleLengths.length > 0 ? Math.round(cycleLengths.reduce((a, b) => a + b, 0) / cycleLengths.length) : null);
-         setAvgPeriodLength(periodLengths.length > 0 ? Math.round(periodLengths.reduce((a, b) => a + b, 0) / periodLengths.length) : null);
-
-     }, [logData, isCycleDataLoading]); // Recalculate when logData or loading state changes
 
     // --- Handlers ---
 
@@ -268,16 +145,6 @@ export default function SettingsPage() {
         setAccentColor(validAccent);
         // localStorage handled by useEffect
         toast({ title: "Accent Color Updated", description: `Accent set to ${validAccent}.` });
-    };
-
-    const handleLanguageChange = (newLanguage: string) => {
-        const validLanguage = newLanguage as Language;
-        setLanguage(validLanguage);
-        // localStorage and document.lang handled by useEffect
-        toast({
-            title: "Language Updated",
-            description: `Language set to ${validLanguage}. (UI text update needs full i18n setup)`
-        });
     };
 
 
@@ -567,36 +434,6 @@ export default function SettingsPage() {
         <div className="container mx-auto py-6 px-4 max-w-md space-y-8">
             <h1 className="text-2xl font-semibold text-center">Settings</h1>
 
-            {/* Cycle Settings */}
-            <Card>
-                <CardHeader>
-                    <CardTitle className="text-lg">Cycle Settings (Calculated)</CardTitle>
-                    <CardDescription>Averages based on your logged data. Manual override coming soon.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4 items-center">
-                        <Label htmlFor="cycle-length">Average Cycle Length</Label>
-                        <Input
-                            id="cycle-length"
-                            type="text" // Use text to display 'N/A' or number
-                            value={avgCycleLength !== null ? `${avgCycleLength} days` : 'N/A'}
-                            readOnly
-                            className="w-full bg-muted cursor-not-allowed text-right"
-                        />
-                    </div>
-                     <div className="grid grid-cols-2 gap-4 items-center">
-                        <Label htmlFor="period-length">Average Period Length</Label>
-                         <Input
-                            id="period-length"
-                            type="text"
-                            value={avgPeriodLength !== null ? `${avgPeriodLength} days` : 'N/A'}
-                            readOnly
-                            className="w-full bg-muted cursor-not-allowed text-right"
-                        />
-                    </div>
-                </CardContent>
-            </Card>
-
             {/* Reminders - Enabled */}
              <Card>
                 <CardHeader>
@@ -806,6 +643,7 @@ export default function SettingsPage() {
 // Export helpers if they aren't already exported by another component file
 // Removed export { Form, FormField, FormItem, FormControl, FormLabel, FormMessage, FormDescription };
 // as they are defined locally for structure.
+
 
 
 
