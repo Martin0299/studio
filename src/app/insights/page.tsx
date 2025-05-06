@@ -610,7 +610,9 @@ export default function InsightsPage() {
     }
   };
 
-  const cycleLengthChartData = React.useMemo(() => insights.cycleLengths.map(item => ({
+  const cycleLengthChartData = React.useMemo(() => insights.cycleLengths
+    .slice(-4) // Take only the last 4 entries for the chart
+    .map(item => ({
       ...item,
       fill: "var(--color-length)", 
       name: item.label, 
@@ -855,7 +857,7 @@ export default function InsightsPage() {
                       <TableHead>Protection</TableHead>
                       <TableHead>Orgasm</TableHead>
                       <TableHead>Phase</TableHead>
-                      <TableHead>Edit</TableHead>
+                      <TableHead className="text-right">Edit</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -872,7 +874,7 @@ export default function InsightsPage() {
                            log.orgasm ? <SmilePlus className="h-5 w-5 text-pink-500" /> : <Frown className="h-5 w-5 text-orange-500" />}
                         </TableCell>
                         <TableCell>{log.phase}</TableCell>
-                        <TableCell>
+                        <TableCell className="text-right">
                             <Button variant="ghost" size="icon" asChild>
                                 <Link href={`/log?date=${format(log.date, 'yyyy-MM-dd')}`} onClick={() => setIsActivityLogModalOpen(false)}>
                                     <Edit3 className="h-4 w-4 text-muted-foreground"/>
@@ -1225,7 +1227,7 @@ export default function InsightsPage() {
                             <TableHead>Date</TableHead>
                             <TableHead>Symptoms</TableHead>
                             <TableHead>Phase</TableHead>
-                            <TableHead>Edit</TableHead>
+                            <TableHead className="text-right">Edit</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -1238,7 +1240,7 @@ export default function InsightsPage() {
                                     </ul>
                                 </TableCell>
                                 <TableCell>{log.phase}</TableCell>
-                                <TableCell>
+                                <TableCell className="text-right">
                                     <Button variant="ghost" size="icon" asChild>
                                         <Link href={`/log?date=${format(log.date, 'yyyy-MM-dd')}`} onClick={() => setIsSymptomLogModalOpen(false)}>
                                             <Edit3 className="h-4 w-4 text-muted-foreground"/>
@@ -1267,4 +1269,5 @@ export default function InsightsPage() {
 }
 
       
+
 
