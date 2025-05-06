@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Palette, Lock, Bell, Download, Trash2, CircleHelp, Upload } from 'lucide-react'; // Icons - Added Upload
+import { Palette, Lock, Bell, Download, Trash2, CircleHelp, Upload, Pill } from 'lucide-react'; // Icons - Added Upload, Pill
 import { useCycleData, LogData } from '@/context/CycleDataContext'; // Import context
 import { cn } from '@/lib/utils'; // Import cn
 import { format } from 'date-fns'; // Import date-fns functions
@@ -61,6 +61,8 @@ export default function SettingsPage() {
     // -- Reminder State --
     const [periodReminder, setPeriodReminder] = React.useState<boolean>(true);
     const [fertileReminder, setFertileReminder] = React.useState<boolean>(true);
+    const [pillReminder, setPillReminder] = React.useState<boolean>(false);
+    const [pillReminderTime, setPillReminderTime] = React.useState<string>('08:00');
 
     // -- Security State --
     const [appLock, setAppLock] = React.useState<boolean>(false);
@@ -76,6 +78,8 @@ export default function SettingsPage() {
         const storedAccent = localStorage.getItem('accentColor') as AccentColor | null;
         const storedPeriodReminder = localStorage.getItem('periodReminder');
         const storedFertileReminder = localStorage.getItem('fertileReminder');
+        const storedPillReminder = localStorage.getItem('pillReminder');
+        const storedPillReminderTime = localStorage.getItem('pillReminderTime');
         const storedAppLock = localStorage.getItem('appLock');
 
 
@@ -98,6 +102,9 @@ export default function SettingsPage() {
         // Set reminders
         setPeriodReminder(storedPeriodReminder ? JSON.parse(storedPeriodReminder) : true);
         setFertileReminder(storedFertileReminder ? JSON.parse(storedFertileReminder) : true);
+        setPillReminder(storedPillReminder ? JSON.parse(storedPillReminder) : false);
+        setPillReminderTime(storedPillReminderTime || '08:00');
+
 
         // Set app lock and check PIN status
         const lockEnabled = storedAppLock ? JSON.parse(storedAppLock) : false;
@@ -167,6 +174,28 @@ export default function SettingsPage() {
         });
         // TODO: Implement actual notification scheduling/cancelling logic here or in a service worker
     };
+
+    const handlePillReminderChange = (checked: boolean) => {
+        setPillReminder(checked);
+        localStorage.setItem('pillReminder', JSON.stringify(checked));
+        toast({
+            title: "Reminder Updated",
+            description: `Pill reminder ${checked ? `enabled for ${pillReminderTime}` : 'disabled'}. (Notifications not yet active)`,
+        });
+    };
+
+    const handlePillReminderTimeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const newTime = event.target.value;
+        setPillReminderTime(newTime);
+        localStorage.setItem('pillReminderTime', newTime);
+        if (pillReminder) { // Only toast if reminder is active
+            toast({
+                title: "Reminder Time Updated",
+                description: `Pill reminder time set to ${newTime}. (Notifications not yet active)`,
+            });
+        }
+    };
+
 
     const handleAppLockChange = (checked: boolean) => {
         setAppLock(checked);
@@ -244,7 +273,7 @@ export default function SettingsPage() {
             for (let i = 0; i < localStorage.length; i++) {
                 const key = localStorage.key(i);
                 // Only back up cycle logs and relevant settings
-                if (key && (key.startsWith('cycleLog_') || ['theme', 'accentColor', 'periodReminder', 'fertileReminder', 'appLock', 'appPinStatus', 'appPinHash', 'language', 'healthTipsCache'].includes(key))) {
+                if (key && (key.startsWith('cycleLog_') || ['theme', 'accentColor', 'periodReminder', 'fertileReminder', 'pillReminder', 'pillReminderTime', 'appLock', 'appPinStatus', 'appPinHash', 'language', 'healthTipsCache'].includes(key))) {
                      const value = localStorage.getItem(key);
                     if (value !== null) { // Ensure value is not null
                         backupData[key] = value;
@@ -344,7 +373,7 @@ export default function SettingsPage() {
                 for (const key in importedData) {
                     if (Object.prototype.hasOwnProperty.call(importedData, key)) {
                         // Only import keys that match the expected format/types
-                        if (key.startsWith('cycleLog_') || ['theme', 'accentColor', 'periodReminder', 'fertileReminder', 'appLock', 'appPinStatus', 'appPinHash', 'language', 'healthTipsCache'].includes(key)) {
+                        if (key.startsWith('cycleLog_') || ['theme', 'accentColor', 'periodReminder', 'fertileReminder', 'pillReminder', 'pillReminderTime', 'appLock', 'appPinStatus', 'appPinHash', 'language', 'healthTipsCache'].includes(key)) {
                             // Basic validation for cycleLog entries
                             if (key.startsWith('cycleLog_')) {
                                 const entry = importedData[key];
@@ -467,6 +496,38 @@ export default function SettingsPage() {
                                 aria-label="Toggle fertile window start reminder"
                             />
                         </FormControl>
+                    </FormItem>
+                     <FormItem className="rounded-lg border p-4">
+                        <div className="flex flex-row items-center justify-between">
+                            <div className="space-y-0.5">
+                                <FormLabel htmlFor="pill-reminder-switch" className="text-base flex items-center">
+                                    <Pill className="mr-2 h-5 w-5 text-blue-500"/>Contraceptive Pill
+                                </FormLabel>
+                                <FormDescription className="text-xs">
+                                    Daily reminder for your pill.
+                                </FormDescription>
+                            </div>
+                            <FormControl>
+                                <Switch
+                                    id="pill-reminder-switch"
+                                    checked={pillReminder}
+                                    onCheckedChange={handlePillReminderChange}
+                                    aria-label="Toggle contraceptive pill reminder"
+                                />
+                            </FormControl>
+                        </div>
+                        {pillReminder && (
+                            <div className="mt-3">
+                                <Label htmlFor="pill-time" className="text-sm">Reminder Time</Label>
+                                <Input
+                                    id="pill-time"
+                                    type="time"
+                                    value={pillReminderTime}
+                                    onChange={handlePillReminderTimeChange}
+                                    className="mt-1 w-full"
+                                />
+                            </div>
+                        )}
                     </FormItem>
                 </CardContent>
             </Card>
@@ -643,6 +704,7 @@ export default function SettingsPage() {
 // Export helpers if they aren't already exported by another component file
 // Removed export { Form, FormField, FormItem, FormControl, FormLabel, FormMessage, FormDescription };
 // as they are defined locally for structure.
+
 
 
 
