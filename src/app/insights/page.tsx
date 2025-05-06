@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Droplet, CalendarDays, HeartPulse, Percent, Activity, LineChart, BarChart as BarChartIcon, Info, TrendingUp, TrendingDown, Minus as MinusIcon, BrainCircuit, Lightbulb, Loader2, Baby, HeartHandshake, Eye } from 'lucide-react'; // Added Eye icon
+import { Droplet, CalendarDays, HeartPulse, Percent, Activity, LineChart, BarChart as BarChartIcon, Info, TrendingUp, TrendingDown, Minus as MinusIcon, BrainCircuit, Lightbulb, Loader2, Baby, HeartHandshake, Eye, ShieldCheck, Ban, SmilePlus, Frown } from 'lucide-react'; // Added Eye, ShieldCheck, Ban, SmilePlus, Frown icons
 import { useCycleData, LogData } from '@/context/CycleDataContext';
 import { differenceInDays, format, parseISO, addDays, subDays, isWithinInterval, isValid, isAfter, isEqual, startOfDay, isBefore } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -32,12 +32,20 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table"; // Import Table components
+} from "@/components/ui/table";
 
 
 // Define cycle phases
 type CyclePhase = 'Period' | 'Follicular' | 'Fertile Window' | 'Luteal' | 'Unknown';
 const TIPS_STORAGE_KEY = 'healthTipsCache'; // Key for localStorage
+
+interface DetailedActivityLog {
+  date: Date;
+  count: number;
+  protectionUsed?: boolean;
+  orgasm?: boolean;
+  phase: CyclePhase;
+}
 
 // Helper function to determine cycle phase for a given date
 const getCyclePhase = (
@@ -142,6 +150,7 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
     activityByPhase: { phase: CyclePhase; count: number }[];
     symptomsByPhase: { phase: CyclePhase; count: number }[];
     totalSymptomCount: number;
+    detailedActivityLogs: DetailedActivityLog[];
 } => {
     const periodStartDates: Date[] = [];
     const periodLengthsData: { date: Date; length: number }[] = [];
@@ -152,6 +161,7 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
     let unprotectedActivityDays = 0;
     let totalActivityCount = 0;
     let totalSymptomCount = 0;
+    const detailedActivityLogs: DetailedActivityLog[] = [];
 
     const activityByPhaseCounts: Record<CyclePhase, number> = {
         'Period': 0, 'Follicular': 0, 'Fertile Window': 0, 'Luteal': 0, 'Unknown': 0,
@@ -275,6 +285,13 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
             if (entry.protectionUsed === true) protectedActivityDays++;
             else if (entry.protectionUsed === false) unprotectedActivityDays++;
             activityByPhaseCounts[phase] += activityCount;
+            detailedActivityLogs.push({
+                date,
+                count: activityCount,
+                protectionUsed: entry.protectionUsed,
+                orgasm: entry.orgasm,
+                phase
+            });
         }
 
          if (entry.symptoms && entry.symptoms.length > 0) {
@@ -376,6 +393,7 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
         pregnancyChance, fertileWindowString,
         activityByPhase, symptomsByPhase,
         totalSymptomCount,
+        detailedActivityLogs,
     };
 };
 
@@ -428,7 +446,8 @@ export default function InsightsPage() {
   const [healthTips, setHealthTips] = React.useState<string>('');
   const [isTipsLoading, setIsTipsLoading] = React.useState(false);
   const [isTipsDialogOpen, setIsTipsDialogOpen] = React.useState(false);
-  const [isCycleHistoryModalOpen, setIsCycleHistoryModalOpen] = React.useState(false); // For cycle length history modal
+  const [isCycleHistoryModalOpen, setIsCycleHistoryModalOpen] = React.useState(false);
+  const [isActivityLogModalOpen, setIsActivityLogModalOpen] = React.useState(false);
   const { toast } = useToast();
 
  React.useEffect(() => {
@@ -689,24 +708,78 @@ export default function InsightsPage() {
         </Card>
 
 
-      <Card className="shadow-md hover:shadow-lg transition-shadow">
-            <CardHeader>
-            <CardTitle className="text-xl flex items-center text-red-500">
-                <HeartPulse className="mr-2 h-6 w-6"/> Activity Summary
-            </CardTitle>
-            {insights.totalActivityCount === 0 && <CardDescription className="!mt-1 text-xs">Log sexual activity for summaries.</CardDescription>}
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
+        <Dialog open={isActivityLogModalOpen} onOpenChange={setIsActivityLogModalOpen}>
+          <DialogTrigger asChild>
+            <Card className="shadow-md hover:shadow-lg transition-shadow cursor-pointer">
+              <CardHeader>
+                <CardTitle className="text-xl flex items-center text-red-500">
+                  <HeartPulse className="mr-2 h-6 w-6" /> Activity Summary
+                </CardTitle>
+                {insights.totalActivityCount === 0 && <CardDescription className="!mt-1 text-xs">Log sexual activity for summaries.</CardDescription>}
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
                 <div className="flex justify-between"><span>Total Count:</span> <span className="font-semibold">{insights.totalActivityCount}</span></div>
                 <div className="flex justify-between"><span>Days w/ Activity:</span> <span className="font-semibold">{insights.totalSexualActivityDays}</span></div>
                 <div className="flex justify-between"><span>Frequency:</span> <span className="font-semibold">{insights.activityFrequency > 0 ? `${insights.activityFrequency.toFixed(0)}% of days` : 'N/A'}</span></div>
-                 <div className="flex justify-between"><span>Protection Rate:</span> <span className="font-semibold">
-                    {insights.protectionRate !== null
-                        ? `${insights.protectionRate.toFixed(0)}% of active days`
-                        : 'N/A'}
-                 </span></div>
-            </CardContent>
-        </Card>
+                <div className="flex justify-between"><span>Protection Rate:</span> <span className="font-semibold">
+                  {insights.protectionRate !== null
+                    ? `${insights.protectionRate.toFixed(0)}% of active days`
+                    : 'N/A'}
+                </span></div>
+                {insights.totalActivityCount > 0 && (
+                    <Button variant="link" size="sm" className="p-0 h-auto text-accent -ml-1" onClick={(e) => {e.stopPropagation(); setIsActivityLogModalOpen(true); }}>
+                        <Eye className="mr-1 h-4 w-4"/> View Detailed Log
+                    </Button>
+                )}
+              </CardContent>
+            </Card>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Detailed Activity Log</DialogTitle>
+              <DialogDescription>History of logged sexual activity.</DialogDescription>
+            </DialogHeader>
+            <ScrollArea className="max-h-[60vh] pr-4">
+              {insights.detailedActivityLogs.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Count</TableHead>
+                      <TableHead>Protection</TableHead>
+                      <TableHead>Orgasm</TableHead>
+                      <TableHead>Phase</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {insights.detailedActivityLogs.sort((a,b) => b.date.getTime() - a.date.getTime()).map((log, index) => (
+                      <TableRow key={index}>
+                        <TableCell>{format(log.date, 'MMM dd, yyyy')}</TableCell>
+                        <TableCell>{log.count}</TableCell>
+                        <TableCell>
+                          {log.protectionUsed === undefined ? <MinusIcon className="h-4 w-4 text-muted-foreground" /> :
+                           log.protectionUsed ? <ShieldCheck className="h-5 w-5 text-green-600" /> : <Ban className="h-5 w-5 text-red-600" />}
+                        </TableCell>
+                        <TableCell>
+                          {log.orgasm === undefined ? <MinusIcon className="h-4 w-4 text-muted-foreground" /> :
+                           log.orgasm ? <SmilePlus className="h-5 w-5 text-pink-500" /> : <Frown className="h-5 w-5 text-orange-500" />}
+                        </TableCell>
+                        <TableCell>{log.phase}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <p className="text-muted-foreground text-center italic py-4">No detailed activity data available.</p>
+              )}
+            </ScrollArea>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button type="button" variant="secondary">Close</Button>
+              </DialogClose>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
       {/* Cycle Length History Card with Modal Trigger */}
       <Card className="md:col-span-2 shadow-md hover:shadow-lg transition-shadow">
@@ -954,3 +1027,4 @@ export default function InsightsPage() {
     </div>
   );
 }
+
