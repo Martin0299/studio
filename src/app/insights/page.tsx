@@ -140,8 +140,8 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
     minPeriodLength: number | null; // Added Min
     maxPeriodLength: number | null; // Added Max
     predictedNextPeriod: string | null;
-    cycleLengths: { cycleNumber: number; length: number }[]; // Structure for chart
-    periodLengths: { periodNumber: number; length: number }[]; // Structure for chart
+    cycleLengths: { label: string; length: number }[]; // Changed for chart: label includes month
+    periodLengths: { label: string; length: number }[]; // Changed for chart: label includes month
     totalSexualActivityDays: number;
     totalActivityCount: number;
     protectedActivityDays: number;
@@ -155,8 +155,9 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
     totalSymptomCount: number;
 } => {
     const periodStartDates: Date[] = [];
-    const periodLengthsData: number[] = []; // Raw period lengths
-    const cycleLengthsData: number[] = []; // Raw cycle lengths
+    const periodLengthsData: { date: Date; length: number }[] = []; // Store date with length
+    const cycleLengthsData: { date: Date; length: number }[] = []; // Store date with length
+
     let totalSexualActivityDays = 0;
     let protectedActivityDays = 0;
     let unprotectedActivityDays = 0;
@@ -203,7 +204,7 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
                  if (isValid(previousStartDate)) {
                     const cycleLength = differenceInDays(date, previousStartDate);
                     if (cycleLength > 10 && cycleLength < 100) {
-                        cycleLengthsData.push(cycleLength);
+                        cycleLengthsData.push({ date: previousStartDate, length: cycleLength });
                     }
                  }
              }
@@ -212,7 +213,7 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
 
      // 2. Calculate Averages needed for phase calculation BEFORE phase assignment
      const avgCycleLength = cycleLengthsData.length > 0
-        ? Math.round(cycleLengthsData.reduce((a, b) => a + b, 0) / cycleLengthsData.length)
+        ? Math.round(cycleLengthsData.map(d => d.length).reduce((a, b) => a + b, 0) / cycleLengthsData.length)
         : null;
 
     // 3. Calculate period lengths
@@ -270,7 +271,7 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
         if (finalEndDate && isValid(finalEndDate)) {
              const length = differenceInDays(finalEndDate, startDate) + 1;
              if (length > 0 && length < 20) { // Basic validation
-                 periodLengthsData.push(length);
+                 periodLengthsData.push({ date: startDate, length });
              } else {
                  console.warn(`Calculated period length (${length}) outside expected range for start date ${format(startDate, 'yyyy-MM-dd')}. Skipping.`);
              }
@@ -281,7 +282,7 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
 
     // Calculate average period length AFTER iterating through all periods
     const avgPeriodLength = periodLengthsData.length > 0
-        ? Math.round(periodLengthsData.reduce((a, b) => a + b, 0) / periodLengthsData.length)
+        ? Math.round(periodLengthsData.map(d => d.length).reduce((a, b) => a + b, 0) / periodLengthsData.length)
         : null;
 
 
@@ -323,16 +324,17 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
     const protectionRate = totalSexualActivityDays > 0 ? (protectedActivityDays / totalSexualActivityDays) * 100 : null;
 
     // Min/Max Lengths
-    const minCycleLength = cycleLengthsData.length > 0 ? Math.min(...cycleLengthsData) : null;
-    const maxCycleLength = cycleLengthsData.length > 0 ? Math.max(...cycleLengthsData) : null;
-    const minPeriodLength = periodLengthsData.length > 0 ? Math.min(...periodLengthsData) : null;
-    const maxPeriodLength = periodLengthsData.length > 0 ? Math.max(...periodLengthsData) : null;
+    const minCycleLength = cycleLengthsData.length > 0 ? Math.min(...cycleLengthsData.map(d => d.length)) : null;
+    const maxCycleLength = cycleLengthsData.length > 0 ? Math.max(...cycleLengthsData.map(d => d.length)) : null;
+    const minPeriodLength = periodLengthsData.length > 0 ? Math.min(...periodLengthsData.map(d => d.length)) : null;
+    const maxPeriodLength = periodLengthsData.length > 0 ? Math.max(...periodLengthsData.map(d => d.length)) : null;
 
     // Cycle Length Trend (simple - requires at least 3 cycles)
     let cycleLengthTrend: 'stable' | 'increasing' | 'decreasing' | null = null;
     if (cycleLengthsData.length >= 3) {
-        const firstHalfAvg = cycleLengthsData.slice(0, Math.floor(cycleLengthsData.length / 2)).reduce((a, b) => a + b, 0) / Math.floor(cycleLengthsData.length / 2);
-        const secondHalfAvg = cycleLengthsData.slice(Math.ceil(cycleLengthsData.length / 2)).reduce((a, b) => a + b, 0) / Math.ceil(cycleLengthsData.length / 2);
+        const lengthsOnly = cycleLengthsData.map(d => d.length);
+        const firstHalfAvg = lengthsOnly.slice(0, Math.floor(lengthsOnly.length / 2)).reduce((a, b) => a + b, 0) / Math.floor(lengthsOnly.length / 2);
+        const secondHalfAvg = lengthsOnly.slice(Math.ceil(lengthsOnly.length / 2)).reduce((a, b) => a + b, 0) / Math.ceil(lengthsOnly.length / 2);
         if (Math.abs(firstHalfAvg - secondHalfAvg) < 1.5) { // Threshold for stability
             cycleLengthTrend = 'stable';
         } else if (secondHalfAvg > firstHalfAvg) {
@@ -377,8 +379,15 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
     }
 
     // Format Chart Data
-    const cycleLengths = cycleLengthsData.map((length, index) => ({ cycleNumber: index + 1, length }));
-    const periodLengths = periodLengthsData.map((length, index) => ({ periodNumber: index + 1, length }));
+    const cycleLengths = cycleLengthsData.map(({ date, length }, index) => ({
+        label: `${format(date, 'MMM')} C${index + 1}`,
+        length
+    }));
+    const periodLengths = periodLengthsData.map(({ date, length }, index) => ({
+        label: `${format(date, 'MMM')} P${index + 1}`,
+        length
+    }));
+
     const phaseOrder: CyclePhase[] = ['Period', 'Follicular', 'Fertile Window', 'Luteal', 'Unknown'];
     const activityByPhase = phaseOrder.map(phase => ({ phase, count: activityByPhaseCounts[phase] || 0 }));
     const symptomsByPhase = phaseOrder.map(phase => {
@@ -518,13 +527,13 @@ export default function InsightsPage() {
   const cycleLengthChartData = React.useMemo(() => insights.cycleLengths.map(item => ({
       ...item,
       fill: "var(--color-length)",
-      name: `Cycle ${item.cycleNumber}` // Add name for tooltip label
+      name: item.label // Use the full label (e.g., "Jan C1")
   })), [insights.cycleLengths]);
 
   const periodLengthChartData = React.useMemo(() => insights.periodLengths.map(item => ({
       ...item,
       fill: "var(--color-length)",
-      name: `Period ${item.periodNumber}` // Add name for tooltip label
+      name: item.label // Use the full label (e.g., "Jan P1")
   })), [insights.periodLengths]);
 
   const activityChartData = React.useMemo(() => insights.activityByPhase.map(item => ({
@@ -760,12 +769,12 @@ export default function InsightsPage() {
                     <BarChart data={cycleLengthChartData} margin={{ top: 20, right: 10, left: -15, bottom: 5 }}> {/* Adjusted margins */}
                         <CartesianGrid vertical={false} strokeDasharray="3 3" />
                         <XAxis
-                            dataKey="cycleNumber"
+                            dataKey="label" // Use the new label field
                             tickLine={false}
                             axisLine={false}
                             tickMargin={8}
-                            tickFormatter={(value) => `C${value}`}
                             fontSize={10}
+                            interval={0} // Show all labels
                         />
                         <YAxis
                              type="number"
@@ -809,12 +818,12 @@ export default function InsightsPage() {
                         <BarChart data={periodLengthChartData} margin={{ top: 20, right: 10, left: -15, bottom: 5 }}>
                             <CartesianGrid vertical={false} strokeDasharray="3 3" />
                             <XAxis
-                                dataKey="periodNumber"
+                                dataKey="label" // Use the new label field
                                 tickLine={false}
                                 axisLine={false}
                                 tickMargin={8}
-                                tickFormatter={(value) => `P${value}`}
                                 fontSize={10}
+                                interval={0} // Show all labels
                             />
                             <YAxis
                                 type="number"
@@ -886,7 +895,7 @@ export default function InsightsPage() {
                     </BarChart>
                 </ResponsiveContainer>
             </ChartContainer>
-          ) : (
+           ) : (
              noChartDataMessage("Log sexual activity to visualize patterns across your cycle phases.")
            )}
         </CardContent>
@@ -947,3 +956,4 @@ export default function InsightsPage() {
     </div> /* Close container */
   );
 }
+
