@@ -145,7 +145,8 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
     predictedNextPeriod: string | null;
     cycleLengths: { label: string; length: number }[]; // For chart
     rawCycleLengths: { startDate: Date; length: number }[]; // For modal
-    periodLengths: { label: string; length: number }[];
+    periodLengths: { label: string; length: number }[]; // For chart
+    rawPeriodLengths: { startDate: Date; length: number }[]; // For modal
     totalSexualActivityDays: number;
     totalActivityCount: number;
     protectedActivityDays: number;
@@ -389,6 +390,10 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
         label: `${format(date, 'MMM')} P${index + 1}`,
         length
     }));
+    const rawPeriodLengths = periodLengthsData.map(({date, length}) => ({
+        startDate: date,
+        length
+    }));
 
     const phaseOrder: CyclePhase[] = ['Period', 'Follicular', 'Fertile Window', 'Luteal', 'Unknown'];
     const activityByPhase = phaseOrder.map(phase => ({ phase, count: activityByPhaseCounts[phase] || 0 }));
@@ -402,7 +407,7 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
         avgCycleLength, minCycleLength, maxCycleLength, cycleLengthTrend,
         avgPeriodLength, minPeriodLength, maxPeriodLength,
         predictedNextPeriod,
-        cycleLengths, rawCycleLengths, periodLengths,
+        cycleLengths, rawCycleLengths, periodLengths, rawPeriodLengths,
         totalSexualActivityDays, totalActivityCount, protectedActivityDays, unprotectedActivityDays,
         activityFrequency, protectionRate,
         pregnancyChance, fertileWindowString,
@@ -463,6 +468,7 @@ export default function InsightsPage() {
   const [isTipsLoading, setIsTipsLoading] = React.useState(false);
   const [isTipsDialogOpen, setIsTipsDialogOpen] = React.useState(false);
   const [isCycleHistoryModalOpen, setIsCycleHistoryModalOpen] = React.useState(false);
+  const [isPeriodHistoryModalOpen, setIsPeriodHistoryModalOpen] = React.useState(false);
   const [isActivityLogModalOpen, setIsActivityLogModalOpen] = React.useState(false);
   const [isSymptomLogModalOpen, setIsSymptomLogModalOpen] = React.useState(false);
   const { toast } = useToast();
@@ -910,12 +916,65 @@ export default function InsightsPage() {
       </Card>
 
 
+      {/* Period Length History Card with Modal Trigger */}
       <Card className="md:col-span-2 shadow-md hover:shadow-lg transition-shadow">
-        <CardHeader>
-          <CardTitle className="text-xl flex items-center">
-             <Droplet className="mr-2 h-5 w-5 text-chart-2"/> Period Length History
-          </CardTitle>
-           {insights.periodLengths.length < 1 && <CardDescription className="!mt-1 text-xs">Log period start and end dates for history.</CardDescription>}
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div className="space-y-0.5">
+            <CardTitle className="text-xl flex items-center">
+              <Droplet className="mr-2 h-5 w-5 text-chart-2"/> Period Length History
+            </CardTitle>
+            {insights.periodLengths.length < 1 && <CardDescription className="!mt-1 text-xs">Log period start and end dates for history.</CardDescription>}
+          </div>
+          {insights.rawPeriodLengths.length > 0 && (
+            <Dialog open={isPeriodHistoryModalOpen} onOpenChange={setIsPeriodHistoryModalOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" onClick={() => setIsPeriodHistoryModalOpen(true)}>
+                  <Eye className="mr-2 h-4 w-4" /> Full History
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Full Period Length History</DialogTitle>
+                  <DialogDescription>Detailed view of all logged period lengths.</DialogDescription>
+                </DialogHeader>
+                <ScrollArea className="max-h-[60vh] pr-4">
+                  {insights.rawPeriodLengths.length > 0 ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Period Start Date</TableHead>
+                          <TableHead className="text-right">Length (Days)</TableHead>
+                          <TableHead className="text-right">Edit</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {insights.rawPeriodLengths.map((period, index) => (
+                          <TableRow key={index}>
+                            <TableCell>{format(period.startDate, 'MMM dd, yyyy')}</TableCell>
+                            <TableCell className="text-right">{period.length}</TableCell>
+                            <TableCell className="text-right">
+                              <Button variant="ghost" size="icon" asChild>
+                                <Link href={`/log?date=${format(period.startDate, 'yyyy-MM-dd')}`} onClick={() => setIsPeriodHistoryModalOpen(false)}>
+                                  <Edit3 className="h-4 w-4 text-muted-foreground"/>
+                                </Link>
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <p className="text-muted-foreground text-center italic py-4">No period length data available.</p>
+                  )}
+                </ScrollArea>
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button type="button" variant="secondary">Close</Button>
+                  </DialogClose>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
         </CardHeader>
         <CardContent>
             {periodLengthChartData.length > 0 ? (
@@ -1119,4 +1178,3 @@ export default function InsightsPage() {
     </div>
   );
 }
-
