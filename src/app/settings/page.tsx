@@ -21,17 +21,25 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Palette, Lock, Bell, Download, Trash2, CircleHelp, Upload, Pill } from 'lucide-react'; // Icons - Added Upload, Pill
+import { Palette, Lock, Bell, Download, Trash2, CircleHelp, Upload, Pill, Languages } from 'lucide-react'; // Icons - Added Upload, Pill, Languages
 import { useCycleData, LogData } from '@/context/CycleDataContext'; // Import context
 import { cn } from '@/lib/utils'; // Import cn
 import { format } from 'date-fns'; // Import date-fns functions
 import PinSetupDialog from '@/components/settings/PinSetupDialog'; // Import the new dialog
 import { setPinStatus, getPinStatus, clearPinStatus } from '@/lib/security'; // Import PIN utility functions
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 
 // Define theme type (Removed 'system')
 type Theme = 'light' | 'dark';
 type AccentColor = 'coral' | 'gold';
+type Language = 'en' | 'hu' | 'de';
 
 
 // Define helper components for Form structure (minimal versions)
@@ -56,6 +64,7 @@ export default function SettingsPage() {
     // -- Appearance State --
     const [theme, setTheme] = React.useState<Theme>('light');
     const [accentColor, setAccentColor] = React.useState<AccentColor>('coral');
+    const [language, setLanguage] = React.useState<Language>('en');
 
 
     // -- Reminder State --
@@ -76,6 +85,7 @@ export default function SettingsPage() {
     React.useEffect(() => {
         const storedTheme = localStorage.getItem('theme') as Theme | null;
         const storedAccent = localStorage.getItem('accentColor') as AccentColor | null;
+        const storedLanguage = localStorage.getItem('language') as Language | null;
         const storedPeriodReminder = localStorage.getItem('periodReminder');
         const storedFertileReminder = localStorage.getItem('fertileReminder');
         const storedPillReminder = localStorage.getItem('pillReminder');
@@ -98,6 +108,15 @@ export default function SettingsPage() {
             setAccentColor('coral');
             localStorage.setItem('accentColor', 'coral');
         }
+        
+        // Set language
+        if (storedLanguage && ['en', 'hu', 'de'].includes(storedLanguage)) {
+            setLanguage(storedLanguage);
+        } else {
+            setLanguage('en'); // Default to English
+            localStorage.setItem('language', 'en');
+        }
+
 
         // Set reminders
         setPeriodReminder(storedPeriodReminder ? JSON.parse(storedPeriodReminder) : true);
@@ -137,6 +156,15 @@ export default function SettingsPage() {
     }, [accentColor]); // Run only when accentColor changes
 
 
+    // Apply language attribute to HTML element
+    React.useEffect(() => {
+        document.documentElement.lang = language;
+        localStorage.setItem('language', language);
+        // Here you would also trigger your i18n library to change the language
+        // For example: i18n.changeLanguage(language);
+        // This example doesn't include a full i18n setup, just sets the lang attribute.
+    }, [language]);
+
 
     // --- Handlers ---
 
@@ -152,6 +180,12 @@ export default function SettingsPage() {
         setAccentColor(validAccent);
         // localStorage handled by useEffect
         toast({ title: "Accent Color Updated", description: `Accent set to ${validAccent}.` });
+    };
+    
+    const handleLanguageChange = (newLanguage: string) => {
+        const validLanguage = newLanguage as Language;
+        setLanguage(validLanguage);
+        toast({ title: "Language Updated", description: `Language set to ${validLanguage}. UI text will update after full i18n setup.` });
     };
 
 
@@ -458,8 +492,11 @@ export default function SettingsPage() {
     };
 
     const isDeleteDisabled = deleteConfirmInput !== 'DELETE';
+    const appVersion = process.env.APP_VERSION || '0.0.0'; // Get version from env
+
 
     return (
+        <Form> {/* Wrap entire content in Form for context, if Form components are used outside FormField */}
         <div className="container mx-auto py-6 px-4 max-w-md space-y-8">
             <h1 className="text-2xl font-semibold text-center">Settings</h1>
 
@@ -467,7 +504,7 @@ export default function SettingsPage() {
              <Card>
                 <CardHeader>
                     <CardTitle className="text-lg flex items-center"><Bell className="mr-2 h-5 w-5 text-accent"/>Reminders</CardTitle>
-                     <CardDescription>Manage your cycle notifications. (Actual notifications require app setup)</CardDescription>
+                     <FormDescription>Manage your cycle notifications. (Actual notifications require app setup)</FormDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
@@ -536,33 +573,33 @@ export default function SettingsPage() {
             <Card>
                 <CardHeader>
                     <CardTitle className="text-lg flex items-center"><Palette className="mr-2 h-5 w-5 text-accent"/>Appearance</CardTitle>
-                     <CardDescription>Customize the look and feel of the app.</CardDescription>
+                     <FormDescription>Customize the look and feel of the app.</FormDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                      <div>
                          <Label className="mb-2 block">Theme</Label>
                          <RadioGroup value={theme} onValueChange={handleThemeChange} className="flex space-x-4">
-                            <div className="flex items-center space-x-2">
+                            <FormItem className="flex items-center space-x-2">
                                 <RadioGroupItem value="light" id="theme-light" />
                                 <Label htmlFor="theme-light">Light</Label>
-                            </div>
-                            <div className="flex items-center space-x-2">
+                            </FormItem>
+                            <FormItem className="flex items-center space-x-2">
                                 <RadioGroupItem value="dark" id="theme-dark" />
                                 <Label htmlFor="theme-dark">Dark</Label>
-                            </div>
+                            </FormItem>
                          </RadioGroup>
                      </div>
                       <div>
                          <Label className="mb-2 block">Accent Color</Label>
                          <RadioGroup value={accentColor} onValueChange={handleAccentChange} className="flex space-x-4">
-                            <div className="flex items-center space-x-2">
+                            <FormItem className="flex items-center space-x-2">
                                 <RadioGroupItem value="coral" id="accent-coral" />
                                 <Label htmlFor="accent-coral" style={{ color: 'hsl(var(--accent-coral))' }}>Coral</Label>
-                            </div>
-                             <div className="flex items-center space-x-2">
+                            </FormItem>
+                             <FormItem className="flex items-center space-x-2">
                                 <RadioGroupItem value="gold" id="accent-gold" />
                                 <Label htmlFor="accent-gold" style={{ color: 'hsl(var(--accent-gold))' }}>Gold</Label>
-                            </div>
+                            </FormItem>
                          </RadioGroup>
                     </div>
                 </CardContent>
@@ -572,7 +609,7 @@ export default function SettingsPage() {
             <Card>
                 <CardHeader>
                     <CardTitle className="text-lg flex items-center"><Lock className="mr-2 h-5 w-5"/>Security</CardTitle>
-                    <CardDescription>Protect access to your app with a PIN.</CardDescription>
+                    <FormDescription>Protect access to your app with a PIN.</FormDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
@@ -611,9 +648,9 @@ export default function SettingsPage() {
             <Card>
                  <CardHeader>
                     <CardTitle className="text-lg">Local Data Management</CardTitle>
-                    <CardDescription className="text-sm text-muted-foreground !mt-1">
+                    <FormDescription className="text-sm text-muted-foreground !mt-1">
                          Your data is stored locally. Backup creates a JSON file, Export creates a CSV file. Import replaces current data. Deleting data here is permanent.
-                    </CardDescription>
+                    </FormDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     {/* Hidden file input for import */}
@@ -689,11 +726,13 @@ export default function SettingsPage() {
                     <CardTitle className="text-lg flex items-center"><CircleHelp className="mr-2 h-5 w-5"/>About</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                    <p className="text-sm text-muted-foreground">App Version: 1.0.1</p>
+                    <p className="text-sm text-muted-foreground">App Version: {appVersion}</p>
                  </CardContent>
             </Card>
 
              {/* No overall save button needed as settings are applied instantly */}
         </div>
+        </Form>
     );
 }
+
