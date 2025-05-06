@@ -10,22 +10,29 @@ import {
     DialogHeader,
     DialogTitle,
     DialogTrigger,
-    DialogFooter, // Added Footer
-    DialogClose, // Added Close
+    DialogFooter,
+    DialogClose,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button"; // Added Button
-import { ScrollArea } from "@/components/ui/scroll-area"; // Added ScrollArea for tips
-// Added Baby icon, HeartHandshake might be better if Baby isn't available
-import { Droplet, CalendarDays, HeartPulse, Percent, Activity, LineChart, BarChart as BarChartIcon, Info, TrendingUp, TrendingDown, Minus as MinusIcon, BrainCircuit, Lightbulb, Loader2, Baby, HeartHandshake } from 'lucide-react';
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Droplet, CalendarDays, HeartPulse, Percent, Activity, LineChart, BarChart as BarChartIcon, Info, TrendingUp, TrendingDown, Minus as MinusIcon, BrainCircuit, Lightbulb, Loader2, Baby, HeartHandshake, Eye } from 'lucide-react'; // Added Eye icon
 import { useCycleData, LogData } from '@/context/CycleDataContext';
 import { differenceInDays, format, parseISO, addDays, subDays, isWithinInterval, isValid, isAfter, isEqual, startOfDay, isBefore } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, LabelList } from 'recharts'; // Added LabelList
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, LabelList } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
-import { getMenstrualTips } from '@/ai/flows/menstrual-tips-flow'; // Import the new flow
-import { useToast } from '@/hooks/use-toast'; // Import toast
-import Link from 'next/link'; // Import Link
+import { getMenstrualTips } from '@/ai/flows/menstrual-tips-flow';
+import { useToast } from '@/hooks/use-toast';
+import Link from 'next/link';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"; // Import Table components
 
 
 // Define cycle phases
@@ -43,36 +50,25 @@ const getCyclePhase = (
         return 'Unknown';
     }
 
-    // Find the cycle this date belongs to
     let cycleStartDate: Date | null = null;
     let nextCycleStartDate: Date | null = null;
 
-    // Find the period start date that *precedes or includes* the given date.
     for (let i = periodStartDates.length - 1; i >= 0; i--) {
         const currentStart = periodStartDates[i];
-        if (!isValid(currentStart)) continue; // Skip invalid start dates
+        if (!isValid(currentStart)) continue;
 
         const estimatedNextStart = addDays(currentStart, avgCycleLength);
 
-        // If the date is on or after the current start AND before the next estimated start
-        // Handle the very first cycle edge case (i === 0) where there's no 'next' known start
          if ((!isBefore(date, currentStart) && isBefore(date, estimatedNextStart)) ||
-             (i === 0 && !isBefore(date, currentStart))) { // Ensure date isn't before the very first start
-
+             (i === 0 && !isBefore(date, currentStart))) {
             cycleStartDate = currentStart;
-            nextCycleStartDate = estimatedNextStart; // This is an *estimated* next start
-
-            // Estimate the end date of the period for *this* cycle using average length
+            nextCycleStartDate = estimatedNextStart;
             const periodEndDate = addDays(cycleStartDate, avgPeriodLength - 1);
-
-            // Period Phase Check: Date is within the period duration starting from cycleStartDate
             if (isWithinInterval(date, { start: cycleStartDate, end: periodEndDate })) {
                 return 'Period';
             }
-            // We found the relevant cycle, break the loop
             break;
         }
-         // Special case: Check if date is exactly the last known start date
           else if (i === periodStartDates.length - 1 && isEqual(date, currentStart)) {
               cycleStartDate = currentStart;
               nextCycleStartDate = estimatedNextStart;
@@ -84,79 +80,72 @@ const getCyclePhase = (
           }
     }
 
-     // If we couldn't determine the cycle start (e.g., date is before first log)
      if (!cycleStartDate || !nextCycleStartDate) {
          return 'Unknown';
      }
 
-     // Recalculate estimated period end date for phase calculations below
      const estimatedPeriodEndDate = addDays(cycleStartDate, avgPeriodLength - 1);
-
-    // Estimate ovulation day (approx. 14 days before *estimated* next cycle starts)
     const ovulationDay = subDays(nextCycleStartDate, 14);
-
-    // Fertile Window (approx. 5 days before + ovulation day + 1 day after)
     const fertileWindowStart = subDays(ovulationDay, 5);
     const fertileWindowEnd = addDays(ovulationDay, 1);
     if (isWithinInterval(date, { start: fertileWindowStart, end: fertileWindowEnd })) {
         return 'Fertile Window';
     }
 
-    // Follicular Phase (After *estimated* period ends, before fertile window starts)
-    const follicularStart = addDays(estimatedPeriodEndDate, 1); // Day after period ends
-    const follicularEnd = subDays(fertileWindowStart, 1); // Day before fertile window
+    const follicularStart = addDays(estimatedPeriodEndDate, 1);
+    const follicularEnd = subDays(fertileWindowStart, 1);
 
      if (!isBefore(follicularEnd, follicularStart)) {
          if (isWithinInterval(date, { start: follicularStart, end: follicularEnd })) {
              return 'Follicular';
          }
-     } else if (isEqual(date, follicularStart)) { // Handle single-day phase
+     } else if (isEqual(date, follicularStart)) {
          return 'Follicular';
      }
 
-    // Luteal Phase (After fertile window ends, before next period starts)
-    const lutealStart = addDays(fertileWindowEnd, 1); // Day after fertile window
-    const lutealEnd = subDays(nextCycleStartDate, 1); // Day before next period
+    const lutealStart = addDays(fertileWindowEnd, 1);
+    const lutealEnd = subDays(nextCycleStartDate, 1);
 
      if (!isBefore(lutealEnd, lutealStart)) {
         if (isWithinInterval(date, { start: lutealStart, end: lutealEnd })) {
             return 'Luteal';
         }
-    } else if (isEqual(date, lutealStart)) { // Handle single-day phase
+    } else if (isEqual(date, lutealStart)) {
         return 'Luteal';
     }
 
-    return 'Unknown'; // Default if it doesn't fit neatly
+    return 'Unknown';
 };
 
 
 // Helper function to calculate cycle insights from log data
 const calculateCycleInsights = (logData: Record<string, LogData>): {
     avgCycleLength: number | null;
-    minCycleLength: number | null; // Added Min
-    maxCycleLength: number | null; // Added Max
-    cycleLengthTrend: 'stable' | 'increasing' | 'decreasing' | null; // Added Trend
+    minCycleLength: number | null;
+    maxCycleLength: number | null;
+    cycleLengthTrend: 'stable' | 'increasing' | 'decreasing' | null;
     avgPeriodLength: number | null;
-    minPeriodLength: number | null; // Added Min
-    maxPeriodLength: number | null; // Added Max
+    minPeriodLength: number | null;
+    maxPeriodLength: number | null;
     predictedNextPeriod: string | null;
-    cycleLengths: { label: string; length: number }[]; // Changed for chart: label includes month
-    periodLengths: { label: string; length: number }[]; // Changed for chart: label includes month
+    cycleLengths: { label: string; length: number }[]; // For chart
+    rawCycleLengths: { startDate: Date; length: number }[]; // For modal
+    periodLengths: { label: string; length: number }[];
     totalSexualActivityDays: number;
     totalActivityCount: number;
     protectedActivityDays: number;
     unprotectedActivityDays: number;
     activityFrequency: number;
     protectionRate: number | null;
-    pregnancyChance: 'Low' | 'Moderate' | 'Higher' | 'N/A'; // Changed 'Not enough data'
-    fertileWindowString: string | null; // Allow null
-    activityByPhase: { phase: CyclePhase; count: number }[]; // Structure for chart
-    symptomsByPhase: { phase: CyclePhase; count: number }[]; // Structure for chart
+    pregnancyChance: 'Low' | 'Moderate' | 'Higher' | 'N/A';
+    fertileWindowString: string | null;
+    activityByPhase: { phase: CyclePhase; count: number }[];
+    symptomsByPhase: { phase: CyclePhase; count: number }[];
     totalSymptomCount: number;
 } => {
     const periodStartDates: Date[] = [];
-    const periodLengthsData: { date: Date; length: number }[] = []; // Store date with length
-    const cycleLengthsData: { date: Date; length: number }[] = []; // Store date with length
+    const periodLengthsData: { date: Date; length: number }[] = [];
+    const cycleLengthsData: { date: Date; length: number }[] = [];
 
     let totalSexualActivityDays = 0;
     let protectedActivityDays = 0;
@@ -172,7 +161,6 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
     };
 
 
-    // Sort dates to process chronologically
     const sortedDates = Object.keys(logData)
         .filter(dateString => {
             try {
@@ -183,14 +171,13 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
         })
         .sort((a, b) => parseISO(a).getTime() - parseISO(b).getTime());
 
-    // 1. Identify all period start dates
     sortedDates.forEach((dateString) => {
         const entry = logData[dateString];
-        if (!entry?.date) return; // Ensure entry and date exist
+        if (!entry?.date) return;
 
         const isPeriodDay = entry.periodFlow && entry.periodFlow !== 'none';
         const date = startOfDay(parseISO(entry.date));
-        if (!isValid(date)) return; // Skip if date parsing failed
+        if (!isValid(date)) return;
 
         const prevDay = subDays(date, 1);
         const prevDayString = format(prevDay, 'yyyy-MM-dd');
@@ -211,30 +198,26 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
         }
     });
 
-     // 2. Calculate Averages needed for phase calculation BEFORE phase assignment
      const avgCycleLength = cycleLengthsData.length > 0
         ? Math.round(cycleLengthsData.map(d => d.length).reduce((a, b) => a + b, 0) / cycleLengthsData.length)
         : null;
 
-    // 3. Calculate period lengths
     periodStartDates.forEach((startDate) => {
-        if (!isValid(startDate)) return; // Skip invalid start dates
+        if (!isValid(startDate)) return;
         let endDate: Date | null = null;
         let lastFlowDate = startDate;
-        const searchLimit = addDays(startDate, 20); // Limit search to avoid infinite loops on bad data
+        const searchLimit = addDays(startDate, 20);
         let foundExplicitEnd = false;
 
         for (let d = 0; d < sortedDates.length; d++) {
             const currentDateString = sortedDates[d];
             const currentEntry = logData[currentDateString];
-            if (!currentEntry?.date) continue; // Skip incomplete entries
+            if (!currentEntry?.date) continue;
 
             const currentDate = startOfDay(parseISO(currentEntry.date));
             if (!isValid(currentDate)) continue;
 
-             // Skip dates before or exactly on the start date
-            if (!isAfter(currentDate, startDate)) {
-                // Handle edge case: if the *start date itself* is marked as the end
+             if (!isAfter(currentDate, startDate)) {
                 if (isEqual(currentDate, startDate) && currentEntry.isPeriodEnd) {
                     endDate = currentDate;
                     foundExplicitEnd = true;
@@ -243,34 +226,26 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
                  continue;
             }
 
-            // Stop searching if we've gone too far or found the next period start
             if (isAfter(currentDate, searchLimit)) break;
             const isNextPeriodStart = periodStartDates.some(nextStart => isEqual(currentDate, nextStart) && !isEqual(nextStart, startDate));
             if (isNextPeriodStart) break;
 
-             // Check for explicit end marker
              if (currentEntry.isPeriodEnd) {
                 endDate = currentDate;
                 foundExplicitEnd = true;
                 break;
              }
 
-             // Track the last day flow was recorded if no explicit end found yet
              if (currentEntry.periodFlow && currentEntry.periodFlow !== 'none') {
                  lastFlowDate = currentDate;
              }
         }
 
-
-        // Determine final end date:
-        // 1. Use explicit end marker if found.
-        // 2. Otherwise, use the last day flow was recorded.
-        // 3. If no flow was recorded *after* the start day, and no end marker, assume 1-day period.
         const finalEndDate = foundExplicitEnd ? endDate : (isAfter(lastFlowDate, startDate) ? lastFlowDate : startDate);
 
         if (finalEndDate && isValid(finalEndDate)) {
              const length = differenceInDays(finalEndDate, startDate) + 1;
-             if (length > 0 && length < 20) { // Basic validation
+             if (length > 0 && length < 20) {
                  periodLengthsData.push({ date: startDate, length });
              } else {
                  console.warn(`Calculated period length (${length}) outside expected range for start date ${format(startDate, 'yyyy-MM-dd')}. Skipping.`);
@@ -280,13 +255,11 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
         }
     });
 
-    // Calculate average period length AFTER iterating through all periods
     const avgPeriodLength = periodLengthsData.length > 0
         ? Math.round(periodLengthsData.map(d => d.length).reduce((a, b) => a + b, 0) / periodLengthsData.length)
         : null;
 
 
-     // 4. Process Activity and Symptoms, assigning them to phases
      sortedDates.forEach((dateString) => {
         const entry = logData[dateString];
         if (!entry?.date) return;
@@ -295,7 +268,6 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
 
         const phase = getCyclePhase(date, periodStartDates, avgCycleLength, avgPeriodLength);
 
-        // Sexual Activity
         const activityCount = entry.sexualActivityCount ?? 0;
         if (activityCount > 0) {
             totalSexualActivityDays++;
@@ -305,7 +277,6 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
             activityByPhaseCounts[phase] += activityCount;
         }
 
-        // Symptoms
          if (entry.symptoms && entry.symptoms.length > 0) {
              entry.symptoms.forEach(symptom => {
                  if (!symptomsByPhaseCounts[phase][symptom]) {
@@ -317,25 +288,21 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
          }
      });
 
-    // 5. Final Calculations & Formatting
     const totalLoggedDays = sortedDates.length;
     const activityFrequency = totalLoggedDays > 0 ? (totalSexualActivityDays / totalLoggedDays) * 100 : 0;
-    // Protection rate based on days with activity (more representative than total count)
     const protectionRate = totalSexualActivityDays > 0 ? (protectedActivityDays / totalSexualActivityDays) * 100 : null;
 
-    // Min/Max Lengths
     const minCycleLength = cycleLengthsData.length > 0 ? Math.min(...cycleLengthsData.map(d => d.length)) : null;
     const maxCycleLength = cycleLengthsData.length > 0 ? Math.max(...cycleLengthsData.map(d => d.length)) : null;
     const minPeriodLength = periodLengthsData.length > 0 ? Math.min(...periodLengthsData.map(d => d.length)) : null;
     const maxPeriodLength = periodLengthsData.length > 0 ? Math.max(...periodLengthsData.map(d => d.length)) : null;
 
-    // Cycle Length Trend (simple - requires at least 3 cycles)
     let cycleLengthTrend: 'stable' | 'increasing' | 'decreasing' | null = null;
     if (cycleLengthsData.length >= 3) {
         const lengthsOnly = cycleLengthsData.map(d => d.length);
         const firstHalfAvg = lengthsOnly.slice(0, Math.floor(lengthsOnly.length / 2)).reduce((a, b) => a + b, 0) / Math.floor(lengthsOnly.length / 2);
         const secondHalfAvg = lengthsOnly.slice(Math.ceil(lengthsOnly.length / 2)).reduce((a, b) => a + b, 0) / Math.ceil(lengthsOnly.length / 2);
-        if (Math.abs(firstHalfAvg - secondHalfAvg) < 1.5) { // Threshold for stability
+        if (Math.abs(firstHalfAvg - secondHalfAvg) < 1.5) {
             cycleLengthTrend = 'stable';
         } else if (secondHalfAvg > firstHalfAvg) {
             cycleLengthTrend = 'increasing';
@@ -344,7 +311,6 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
         }
     }
 
-    // Predict next period
     let predictedNextPeriod = null;
     if (periodStartDates.length > 0 && avgCycleLength && avgPeriodLength && isValid(periodStartDates[periodStartDates.length - 1])) {
         const lastPeriodStartDate = periodStartDates[periodStartDates.length - 1];
@@ -357,7 +323,6 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
          predictedNextPeriod = `Around ${format(nextStartDate, 'MMM do, yyyy')}`;
     }
 
-    // Pregnancy Chance & Fertile Window
     let pregnancyChance: 'Low' | 'Moderate' | 'Higher' | 'N/A' = 'N/A';
     let fertileWindowString: string | null = null;
     const today = startOfDay(new Date());
@@ -371,18 +336,23 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
 
          if (isWithinInterval(today, { start: fertileWindowStart, end: fertileWindowEnd })) {
             pregnancyChance = 'Higher';
-         } else if (isWithinInterval(today, { start: subDays(fertileWindowStart, 2), end: addDays(fertileWindowEnd, 2) })) { // Shorter buffer
+         } else if (isWithinInterval(today, { start: subDays(fertileWindowStart, 2), end: addDays(fertileWindowEnd, 2) })) {
              pregnancyChance = 'Moderate';
          } else {
              pregnancyChance = 'Low';
          }
     }
 
-    // Format Chart Data
     const cycleLengths = cycleLengthsData.map(({ date, length }, index) => ({
         label: `${format(date, 'MMM')} C${index + 1}`,
         length
     }));
+    // Also return the raw data for the modal
+    const rawCycleLengths = cycleLengthsData.map(({ date, length }) => ({
+        startDate: date,
+        length
+    }));
+
     const periodLengths = periodLengthsData.map(({ date, length }, index) => ({
         label: `${format(date, 'MMM')} P${index + 1}`,
         length
@@ -400,7 +370,7 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
         avgCycleLength, minCycleLength, maxCycleLength, cycleLengthTrend,
         avgPeriodLength, minPeriodLength, maxPeriodLength,
         predictedNextPeriod,
-        cycleLengths, periodLengths,
+        cycleLengths, rawCycleLengths, periodLengths,
         totalSexualActivityDays, totalActivityCount, protectedActivityDays, unprotectedActivityDays,
         activityFrequency, protectionRate,
         pregnancyChance, fertileWindowString,
@@ -410,7 +380,6 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
 };
 
 
-// Define chart configurations with labels
 const cycleLengthChartConfig = {
   length: { label: "Cycle Length (Days)", color: "hsl(var(--chart-1))" },
 } satisfies ChartConfig;
@@ -428,23 +397,21 @@ const symptomChartConfig = {
 } satisfies ChartConfig;
 
 
-// Helper to format numbers or return 'N/A'
 const formatNumber = (num: number | null | undefined): string => {
     return num !== null && num !== undefined ? num.toString() : 'N/A';
 };
 
 
-// Tooltip formatter
 const CustomTooltipContent = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
-    const data = payload[0].payload; // Access the data point
-    const configEntry = payload[0].payload.config; // Get the label from config if available
+    const data = payload[0].payload;
+    const configEntry = payload[0].payload.config;
 
-    let labelText = configEntry?.label || payload[0].name || 'Value'; // Use config label or default
+    let labelText = configEntry?.label || payload[0].name || 'Value';
 
     return (
       <div className="rounded-lg border bg-background p-2 shadow-sm">
-        <div className="grid grid-cols-1 gap-1.5"> {/* Adjusted grid layout */}
+        <div className="grid grid-cols-1 gap-1.5">
           {label && <p className="text-sm text-muted-foreground">{label}</p>}
            <p className="text-sm font-medium">{`${labelText}: ${payload[0].value}`}</p>
         </div>
@@ -460,7 +427,8 @@ export default function InsightsPage() {
   const [insights, setInsights] = React.useState(() => calculateCycleInsights({}));
   const [healthTips, setHealthTips] = React.useState<string>('');
   const [isTipsLoading, setIsTipsLoading] = React.useState(false);
-  const [isTipsDialogOpen, setIsTipsDialogOpen] = React.useState(false); // Control dialog state
+  const [isTipsDialogOpen, setIsTipsDialogOpen] = React.useState(false);
+  const [isCycleHistoryModalOpen, setIsCycleHistoryModalOpen] = React.useState(false); // For cycle length history modal
   const { toast } = useToast();
 
  React.useEffect(() => {
@@ -473,7 +441,6 @@ export default function InsightsPage() {
     }
   }, [logData, isLoading]);
 
-  // Load health tips from localStorage on mount
   React.useEffect(() => {
     const storedTips = localStorage.getItem(TIPS_STORAGE_KEY);
     if (storedTips) {
@@ -482,11 +449,10 @@ export default function InsightsPage() {
   }, []);
 
 
-  // Handler to fetch health tips
   const handleGetTips = async () => {
     setIsTipsLoading(true);
-    setHealthTips(''); // Clear previous tips visually, but localStorage clears below
-    localStorage.removeItem(TIPS_STORAGE_KEY); // Clear cache
+    setHealthTips('');
+    localStorage.removeItem(TIPS_STORAGE_KEY);
     try {
         const currentPhase = getCyclePhase(
             startOfDay(new Date()),
@@ -501,7 +467,7 @@ export default function InsightsPage() {
 
         const relevantSymptoms = Object.entries(logData)
             .sort(([dateA], [dateB]) => parseISO(dateA).getTime() - parseISO(dateB).getTime())
-            .slice(-7) // Look at last 7 days
+            .slice(-7)
             .flatMap(([, log]) => log.symptoms || []);
         const uniqueSymptoms = [...new Set(relevantSymptoms)];
 
@@ -510,7 +476,7 @@ export default function InsightsPage() {
             recentSymptoms: uniqueSymptoms.length > 0 ? uniqueSymptoms : undefined,
         });
         setHealthTips(tips);
-        localStorage.setItem(TIPS_STORAGE_KEY, tips); // Cache the new tips
+        localStorage.setItem(TIPS_STORAGE_KEY, tips);
     } catch (error) {
       console.error('Error fetching health tips:', error);
       toast({
@@ -523,39 +489,37 @@ export default function InsightsPage() {
     }
   };
 
-  // Prepare chart data, ensuring it uses the structure expected by charts
   const cycleLengthChartData = React.useMemo(() => insights.cycleLengths.map(item => ({
       ...item,
       fill: "var(--color-length)",
-      name: item.label // Use the full label (e.g., "Jan C1")
+      name: item.label
   })), [insights.cycleLengths]);
 
   const periodLengthChartData = React.useMemo(() => insights.periodLengths.map(item => ({
       ...item,
       fill: "var(--color-length)",
-      name: item.label // Use the full label (e.g., "Jan P1")
+      name: item.label
   })), [insights.periodLengths]);
 
   const activityChartData = React.useMemo(() => insights.activityByPhase.map(item => ({
       ...item,
       fill: "var(--color-count)",
-      name: item.phase // Use phase name for tooltip label
+      name: item.phase
   })), [insights.activityByPhase]);
 
   const symptomChartData = React.useMemo(() => insights.symptomsByPhase.map(item => ({
       ...item,
       fill: "var(--color-count)",
-      name: item.phase // Use phase name for tooltip label
+      name: item.phase
   })), [insights.symptomsByPhase]);
 
 
-  // Render Loading State
   if (isLoading) {
      return (
-        <div className="container mx-auto py-6 px-4 max-w-lg space-y-6"> {/* Increased max-width */}
+        <div className="container mx-auto py-6 px-4 max-w-lg space-y-6">
              <h1 className="text-3xl font-bold text-center mb-8">Your Cycle Insights</h1>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 {[...Array(6)].map((_, i) => ( // More skeletons for a grid layout
+                 {[...Array(6)].map((_, i) => (
                     <Card key={i}>
                         <CardHeader><CardTitle><Skeleton className="h-7 w-3/4" /></CardTitle></CardHeader>
                         <CardContent className="space-y-3">
@@ -580,12 +544,11 @@ export default function InsightsPage() {
   );
 
   return (
-    <div className="container mx-auto py-6 px-4 max-w-lg space-y-8"> {/* Increased max-width & spacing */}
+    <div className="container mx-auto py-6 px-4 max-w-lg space-y-8">
       <h1 className="text-3xl font-bold text-center mb-8">Your Cycle Insights</h1>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-        {/* Get Health Tips Card */}
          <Dialog open={isTipsDialogOpen} onOpenChange={setIsTipsDialogOpen}>
              <DialogTrigger asChild>
                  <Card className="shadow-md hover:shadow-lg transition-shadow cursor-pointer bg-gradient-to-br from-accent/10 to-primary/10 md:col-span-2">
@@ -598,7 +561,6 @@ export default function InsightsPage() {
                          </CardDescription>
                      </CardHeader>
                      <CardContent>
-                          {/* Button to open the dialog */}
                          <Button variant="outline" className="w-full" onClick={() => setIsTipsDialogOpen(true)}>
                              View Tips
                          </Button>
@@ -631,7 +593,6 @@ export default function InsightsPage() {
                              Close
                          </Button>
                      </DialogClose>
-                      {/* Button inside dialog to generate/regenerate tips */}
                      <Button type="button" onClick={handleGetTips} disabled={isTipsLoading}>
                          {isTipsLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BrainCircuit className="mr-2 h-4 w-4" />}
                          {healthTips ? 'Regenerate Tips' : 'Generate Tips'}
@@ -641,12 +602,10 @@ export default function InsightsPage() {
          </Dialog>
 
 
-        {/* Baby Planning Card */}
         <Card className="shadow-md hover:shadow-lg transition-shadow md:col-span-2">
             <CardHeader>
-                 {/* Use Baby icon if available, otherwise HeartHandshake */}
                  <CardTitle className="text-xl flex items-center text-pink-600 dark:text-pink-400">
-                    <Baby className="mr-2 h-6 w-6"/> {/* Or HeartHandshake */}
+                    <Baby className="mr-2 h-6 w-6"/>
                     Baby Planning Center
                 </CardTitle>
                  <CardDescription className="!mt-1 text-xs text-muted-foreground">
@@ -663,7 +622,6 @@ export default function InsightsPage() {
         </Card>
 
 
-        {/* Cycle Summary Card */}
         <Card className="shadow-md hover:shadow-lg transition-shadow">
             <CardHeader>
             <CardTitle className="text-xl flex items-center text-primary">
@@ -693,7 +651,6 @@ export default function InsightsPage() {
             </CardContent>
         </Card>
 
-        {/* Period Summary Card */}
          <Card className="shadow-md hover:shadow-lg transition-shadow">
             <CardHeader>
                 <CardTitle className="text-xl flex items-center text-chart-2">
@@ -704,11 +661,9 @@ export default function InsightsPage() {
             <CardContent className="space-y-3 text-sm">
                 <div className="flex justify-between"><span>Avg Length:</span> <span className="font-semibold">{formatNumber(insights.avgPeriodLength)} days</span></div>
                 <div className="flex justify-between"><span>Range:</span> <span className="font-semibold">{formatNumber(insights.minPeriodLength)}-{formatNumber(insights.maxPeriodLength)} days</span></div>
-                {/* Add trend or consistency if enough data? */}
             </CardContent>
         </Card>
 
-       {/* Fertility Estimate Card */}
        <Card className="shadow-md hover:shadow-lg transition-shadow">
             <CardHeader>
                 <CardTitle className="text-xl flex items-center text-green-600">
@@ -723,7 +678,7 @@ export default function InsightsPage() {
                 <div className="flex justify-between">
                     <span>Est. Chance Today:</span>
                     <span className={cn(
-                        "font-bold text-lg", // Make it more prominent
+                        "font-bold text-lg",
                         insights.pregnancyChance === 'Higher' && 'text-red-600 dark:text-red-400',
                         insights.pregnancyChance === 'Moderate' && 'text-yellow-600 dark:text-yellow-400',
                         insights.pregnancyChance === 'Low' && 'text-green-600 dark:text-green-400',
@@ -734,7 +689,6 @@ export default function InsightsPage() {
         </Card>
 
 
-       {/* Sexual Activity Summary Card */}
       <Card className="shadow-md hover:shadow-lg transition-shadow">
             <CardHeader>
             <CardTitle className="text-xl flex items-center text-red-500">
@@ -748,33 +702,79 @@ export default function InsightsPage() {
                 <div className="flex justify-between"><span>Frequency:</span> <span className="font-semibold">{insights.activityFrequency > 0 ? `${insights.activityFrequency.toFixed(0)}% of days` : 'N/A'}</span></div>
                  <div className="flex justify-between"><span>Protection Rate:</span> <span className="font-semibold">
                     {insights.protectionRate !== null
-                        ? `${insights.protectionRate.toFixed(0)}% of active days` // Clarified label
+                        ? `${insights.protectionRate.toFixed(0)}% of active days`
                         : 'N/A'}
                  </span></div>
             </CardContent>
         </Card>
 
-       {/* Cycle Length History Card */}
-      <Card className="md:col-span-2 shadow-md hover:shadow-lg transition-shadow"> {/* Span across columns */}
-        <CardHeader>
-          <CardTitle className="text-xl flex items-center">
-             <BarChartIcon className="mr-2 h-5 w-5 text-chart-1"/> Cycle Length History
-          </CardTitle>
-           {insights.cycleLengths.length < 2 && <CardDescription className="!mt-1 text-xs">Log at least 2 full cycles to visualize history.</CardDescription>}
+      {/* Cycle Length History Card with Modal Trigger */}
+      <Card className="md:col-span-2 shadow-md hover:shadow-lg transition-shadow">
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div className="space-y-0.5">
+            <CardTitle className="text-xl flex items-center">
+              <BarChartIcon className="mr-2 h-5 w-5 text-chart-1"/> Cycle Length History
+            </CardTitle>
+            {insights.cycleLengths.length < 2 && (
+              <CardDescription className="!mt-1 text-xs">Log at least 2 full cycles to visualize history.</CardDescription>
+            )}
+          </div>
+          {insights.rawCycleLengths.length > 0 && (
+            <Dialog open={isCycleHistoryModalOpen} onOpenChange={setIsCycleHistoryModalOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" onClick={() => setIsCycleHistoryModalOpen(true)}>
+                  <Eye className="mr-2 h-4 w-4" /> Full History
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Full Cycle Length History</DialogTitle>
+                  <DialogDescription>Detailed view of all logged cycle lengths.</DialogDescription>
+                </DialogHeader>
+                <ScrollArea className="max-h-[60vh] pr-4"> {/* Added pr-4 for scrollbar */}
+                  {insights.rawCycleLengths.length > 0 ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Cycle Start Date</TableHead>
+                          <TableHead className="text-right">Length (Days)</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {insights.rawCycleLengths.map((cycle, index) => (
+                          <TableRow key={index}>
+                            <TableCell>{format(cycle.startDate, 'MMM dd, yyyy')}</TableCell>
+                            <TableCell className="text-right">{cycle.length}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <p className="text-muted-foreground text-center italic py-4">No cycle length data available.</p>
+                  )}
+                </ScrollArea>
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button type="button" variant="secondary">Close</Button>
+                  </DialogClose>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
         </CardHeader>
         <CardContent>
           {cycleLengthChartData.length > 0 ? (
-             <ChartContainer config={cycleLengthChartConfig} className="h-52 w-full"> {/* Increased height */}
+             <ChartContainer config={cycleLengthChartConfig} className="h-52 w-full">
                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={cycleLengthChartData} margin={{ top: 20, right: 10, left: -15, bottom: 5 }}> {/* Adjusted margins */}
+                    <BarChart data={cycleLengthChartData} margin={{ top: 20, right: 10, left: -15, bottom: 5 }}>
                         <CartesianGrid vertical={false} strokeDasharray="3 3" />
                         <XAxis
-                            dataKey="label" // Use the new label field
+                            dataKey="label"
                             tickLine={false}
                             axisLine={false}
                             tickMargin={8}
                             fontSize={10}
-                            interval={0} // Show all labels
+                            interval={0}
                         />
                         <YAxis
                              type="number"
@@ -785,14 +785,14 @@ export default function InsightsPage() {
                              tickMargin={8}
                              fontSize={10}
                              width={30}
-                             label={{ value: 'Days', angle: -90, position: 'insideLeft', offset: 10, style: { textAnchor: 'middle', fontSize: '10px', fill: 'hsl(var(--muted-foreground))' } }} // Y-axis label
+                             label={{ value: 'Days', angle: -90, position: 'insideLeft', offset: 10, style: { textAnchor: 'middle', fontSize: '10px', fill: 'hsl(var(--muted-foreground))' } }}
                         />
                         <ChartTooltip
                              cursor={{ fill: 'hsl(var(--muted)/0.3)'}}
-                             content={<CustomTooltipContent />} // Use custom tooltip
+                             content={<CustomTooltipContent />}
                          />
                         <Bar dataKey="length" name="Cycle Length" radius={4} fill="var(--color-length)">
-                             <LabelList dataKey="length" position="top" offset={5} fontSize={10} fill="hsl(var(--foreground)/0.8)" /> {/* Show value labels */}
+                             <LabelList dataKey="length" position="top" offset={5} fontSize={10} fill="hsl(var(--foreground)/0.8)" />
                         </Bar>
                     </BarChart>
                 </ResponsiveContainer>
@@ -803,7 +803,7 @@ export default function InsightsPage() {
         </CardContent>
       </Card>
 
-      {/* Period Length History Card */}
+
       <Card className="md:col-span-2 shadow-md hover:shadow-lg transition-shadow">
         <CardHeader>
           <CardTitle className="text-xl flex items-center">
@@ -818,12 +818,12 @@ export default function InsightsPage() {
                         <BarChart data={periodLengthChartData} margin={{ top: 20, right: 10, left: -15, bottom: 5 }}>
                             <CartesianGrid vertical={false} strokeDasharray="3 3" />
                             <XAxis
-                                dataKey="label" // Use the new label field
+                                dataKey="label"
                                 tickLine={false}
                                 axisLine={false}
                                 tickMargin={8}
                                 fontSize={10}
-                                interval={0} // Show all labels
+                                interval={0}
                             />
                             <YAxis
                                 type="number"
@@ -852,7 +852,6 @@ export default function InsightsPage() {
         </CardContent>
       </Card>
 
-      {/* Sexual Activity Patterns Card */}
       <Card className="md:col-span-2 shadow-md hover:shadow-lg transition-shadow">
         <CardHeader>
           <CardTitle className="text-xl flex items-center">
@@ -902,7 +901,6 @@ export default function InsightsPage() {
       </Card>
 
 
-      {/* Symptom Patterns Card */}
       <Card className="md:col-span-2 shadow-md hover:shadow-lg transition-shadow">
         <CardHeader>
           <CardTitle className="text-xl flex items-center">
@@ -952,8 +950,7 @@ export default function InsightsPage() {
         </CardContent>
       </Card>
 
-      </div> {/* Close grid */}
-    </div> /* Close container */
+      </div>
+    </div>
   );
 }
-
