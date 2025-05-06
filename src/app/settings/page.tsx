@@ -24,7 +24,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Palette, Lock, Bell, Download, Trash2, CircleHelp, Upload, Pill } from 'lucide-react'; // Icons - Added Upload, Pill
 import { useCycleData, LogData } from '@/context/CycleDataContext'; // Import context
 import { cn } from '@/lib/utils'; // Import cn
-import { format } from 'date-fns'; // Import date-fns functions
+import { format, parseISO, isValid, isBefore, differenceInDays } from 'date-fns'; // Import date-fns functions
 import PinSetupDialog from '@/components/settings/PinSetupDialog'; // Import the new dialog
 import { setPinStatus, getPinStatus, clearPinStatus } from '@/lib/security'; // Import PIN utility functions
 
@@ -683,16 +683,13 @@ export default function SettingsPage() {
             </Card>
 
 
-             {/* Help & About */}
+             {/* About Card */}
             <Card>
                 <CardHeader>
-                    <CardTitle className="text-lg flex items-center"><CircleHelp className="mr-2 h-5 w-5"/>Help &amp; About</CardTitle>
+                    <CardTitle className="text-lg flex items-center"><CircleHelp className="mr-2 h-5 w-5"/>About</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2">
-                    <Button variant="link" className="p-0 h-auto justify-start" disabled>FAQ (Soon)</Button><br />
-                    <Button variant="link" className="p-0 h-auto justify-start" disabled>Contact Support (Soon)</Button><br />
-                    <Button variant="link" className="p-0 h-auto justify-start" disabled>Privacy Policy (Soon)</Button><br />
-                    <p className="text-xs text-muted-foreground pt-2">App Version: 1.0.1</p> {/* Updated version */}
+                    <p className="text-sm text-muted-foreground">App Version: 1.0.1</p>
                  </CardContent>
             </Card>
 
@@ -704,6 +701,7 @@ export default function SettingsPage() {
 // Export helpers if they aren't already exported by another component file
 // Removed export { Form, FormField, FormItem, FormControl, FormLabel, FormMessage, FormDescription };
 // as they are defined locally for structure.
+
 
 
 
