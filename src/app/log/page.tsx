@@ -6,8 +6,12 @@ export default function LogPage({
 }: {
   searchParams?: { [key: string]: string | string[] | undefined };
 }) {
-  // Get date from query params or default to today
-  const dateParam = searchParams?.date as string | undefined;
+  // Explicitly extract only the 'date' property to avoid any unintended enumeration
+  // of the searchParams object within this Server Component.
+  const dateParam = (searchParams && typeof searchParams === 'object' && 'date' in searchParams)
+    ? searchParams.date as string | undefined
+    : undefined;
+
   let selectedDate = startOfDay(new Date()); // Default to today, ensuring time is 00:00:00
 
   if (dateParam) {
