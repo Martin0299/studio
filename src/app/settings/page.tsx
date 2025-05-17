@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Palette, Lock, Bell, Download, Trash2, Upload, Settings as SettingsIcon, InfoIcon, PillIcon } from 'lucide-react'; // Added PillIcon
+import { Palette, Lock, Download, Trash2, Upload, Settings as SettingsIcon } from 'lucide-react';
 import { useCycleData, LogData } from '@/context/CycleDataContext';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -51,24 +51,17 @@ export default function SettingsPage() {
     const [theme, setTheme] = React.useState<Theme>('light');
     const [accentColor, setAccentColor] = React.useState<AccentColor>('coral');
 
-    // -- Reminder State --
-    const [periodReminder, setPeriodReminder] = React.useState<boolean>(true);
-    const [fertileReminder, setFertileReminder] = React.useState<boolean>(true);
-    // Pill reminder state is removed
-
     // -- Security State --
     const [appLock, setAppLock] = React.useState<boolean>(false);
     const [pinIsSet, setPinIsSet] = React.useState<boolean>(false);
     const [showPinDialog, setShowPinDialog] = React.useState<boolean>(false);
 
 
-    // --- Effects for Appearance, Reminders, Security ---
+    // --- Effects for Appearance, Security ---
     React.useEffect(() => {
         const root = window.document.documentElement;
         const storedTheme = localStorage.getItem('theme') as Theme | null;
         const storedAccent = localStorage.getItem('accentColor') as AccentColor | null;
-        const storedPeriodReminder = localStorage.getItem('periodReminder');
-        const storedFertileReminder = localStorage.getItem('fertileReminder');
         const storedAppLock = localStorage.getItem('appLock');
 
         if (storedTheme && ['light', 'dark'].includes(storedTheme)) {
@@ -90,17 +83,13 @@ export default function SettingsPage() {
             root.setAttribute('data-accent', 'coral');
         }
 
-        setPeriodReminder(storedPeriodReminder ? JSON.parse(storedPeriodReminder) : true);
-        setFertileReminder(storedFertileReminder ? JSON.parse(storedFertileReminder) : true);
-        // Pill reminder loading removed
-
         const lockEnabled = storedAppLock ? JSON.parse(storedAppLock) : false;
         setAppLock(lockEnabled);
         const currentPinStatus = getPinStatus();
         setPinIsSet(currentPinStatus);
 
         if (!lockEnabled && currentPinStatus) {
-            clearPinStatus(); // If app lock is disabled but a PIN status was somehow set, clear it
+            clearPinStatus();
             setPinIsSet(false);
         }
     }, []);
@@ -124,26 +113,6 @@ export default function SettingsPage() {
         toast({ title: "Accent Color Updated", description: `Accent set to ${validAccent}.` });
     };
 
-    const handlePeriodReminderChange = (checked: boolean) => {
-        setPeriodReminder(checked);
-        localStorage.setItem('periodReminder', JSON.stringify(checked));
-        toast({
-            title: "Reminder Updated",
-            description: `Period start reminder ${checked ? 'enabled' : 'disabled'}. (Notifications not yet active)`,
-        });
-    };
-
-    const handleFertileReminderChange = (checked: boolean) => {
-        setFertileReminder(checked);
-        localStorage.setItem('fertileReminder', JSON.stringify(checked));
-        toast({
-            title: "Reminder Updated",
-            description: `Fertile window reminder ${checked ? 'enabled' : 'disabled'}. (Notifications not yet active)`,
-        });
-    };
-    // Pill reminder handlers removed
-
-
     const handleAppLockChange = (checked: boolean) => {
         setAppLock(checked);
         localStorage.setItem('appLock', JSON.stringify(checked));
@@ -154,13 +123,11 @@ export default function SettingsPage() {
         });
         if (checked) {
             if (!pinIsSet) {
-                setShowPinDialog(true); // Prompt to set PIN if enabling lock and no PIN is set
+                setShowPinDialog(true);
             }
         } else {
-            // If app lock is disabled, clear any existing PIN.
-            clearPinStatus(); // Clears the status flag
-            // clearPin(); // Optionally, clear the hash itself if you have such a function
-            setPinIsSet(false); // Update UI state
+            clearPinStatus();
+            setPinIsSet(false);
         }
     };
 
@@ -171,14 +138,13 @@ export default function SettingsPage() {
     const handlePinSet = (success: boolean) => {
         setShowPinDialog(false);
         if (success) {
-            setPinStatus(true); // Mark PIN as successfully set
+            setPinStatus(true);
             setPinIsSet(true);
-            if (!appLock) { // If lock wasn't enabled but PIN was just set, enable lock
+            if (!appLock) {
                 setAppLock(true);
                 localStorage.setItem('appLock', JSON.stringify(true));
             }
         } else {
-            // If PIN setup was cancelled AND app lock was meant to be on but no PIN is now set, disable app lock.
             if (appLock && !getPinStatus()) {
                 setAppLock(false);
                 localStorage.setItem('appLock', JSON.stringify(false));
@@ -208,9 +174,7 @@ export default function SettingsPage() {
         try {
             const backupData: Record<string, any> = {};
             const keysToBackup = [
-                'theme', 'accentColor', 'periodReminder', 'fertileReminder',
-                // 'pillReminder', 'pillReminderTime', // Removed
-                'appLock', 'appPinStatus', 'appPinHash', 'healthTipsCache',
+                'theme', 'accentColor', 'appLock', 'appPinStatus', 'appPinHash', 'healthTipsCache',
                 'babyPlanningChecklist', 'babyPlanningLifestyleInputs',
                 'babyPlanningLifestylePlan', 'babyPlanningMealPlanInputs', 'babyPlanningMealPlan'
             ];
@@ -305,19 +269,15 @@ export default function SettingsPage() {
                 let importedCount = 0;
                 let settingsImportedCount = 0;
                 
-                // Define the list of valid setting keys that can be imported
-                // Excludes 'pillReminder' and 'pillReminderTime' as they were removed
                 const validImportKeys = [
-                    'theme', 'accentColor', 'periodReminder', 'fertileReminder',
-                    'appLock', 'appPinStatus', 'appPinHash', 'healthTipsCache',
+                    'theme', 'accentColor', 'appLock', 'appPinStatus', 'appPinHash', 'healthTipsCache',
                     'babyPlanningChecklist', 'babyPlanningLifestyleInputs',
                     'babyPlanningLifestylePlan', 'babyPlanningMealPlanInputs', 'babyPlanningMealPlan'
                 ];
 
                 for (const key in importedData) {
                     if (Object.prototype.hasOwnProperty.call(importedData, key)) {
-                        // Corrected condition with balanced parentheses
-                        if (key.startsWith('cycleLog_') || validImportKeys.includes(key)) {
+                         if (key.startsWith('cycleLog_') || validImportKeys.includes(key)) {
                             if (key.startsWith('cycleLog_')) {
                                 const entry = importedData[key];
                                 if (typeof entry === 'string') {
@@ -332,15 +292,14 @@ export default function SettingsPage() {
                                     } catch {
                                         console.warn(`Skipping non-JSON cycle log entry for key ${key}`);
                                     }
-                                } else if (entry && typeof entry === 'object' && entry.date) { // Handle if already an object
+                                } else if (entry && typeof entry === 'object' && entry.date) {
                                     localStorage.setItem(key, JSON.stringify(entry));
                                     importedCount++;
                                 } else {
                                     console.warn(`Skipping invalid cycle log entry format for key ${key}`);
                                 }
-                            } else { // This means it's a setting key from validImportKeys
+                            } else { 
                                 const value = importedData[key];
-                                // Ensure value is string or boolean before storing
                                 if (typeof value === 'string' || typeof value === 'boolean') {
                                      localStorage.setItem(key, typeof value === 'boolean' ? JSON.stringify(value) : value);
                                      settingsImportedCount++;
@@ -359,8 +318,8 @@ export default function SettingsPage() {
                     description: `Imported ${importedCount} log entries and ${settingsImportedCount} settings. Please refresh the app if changes aren't reflected immediately.`,
                 });
 
-                refreshData(); // Refresh data in context
-                window.location.reload(); // Force a full reload to apply all settings
+                refreshData();
+                window.location.reload();
 
             } catch (error: any) {
                 console.error("Import failed:", error);
@@ -371,7 +330,6 @@ export default function SettingsPage() {
                 });
             } finally {
                 setIsImporting(false);
-                // Reset file input to allow importing the same file again if needed
                 if (event.target) {
                     event.target.value = '';
                 }
@@ -395,9 +353,9 @@ export default function SettingsPage() {
     };
 
     const handleDeleteAllDataConfirmed = () => {
-        deleteAllData(); // From context
+        deleteAllData();
         toast({ variant: "destructive", title: "Data Deleted", description: "All your cycle data has been permanently removed." });
-        setDeleteConfirmInput(''); // Reset input after deletion
+        setDeleteConfirmInput('');
     };
 
     const isDeleteDisabled = deleteConfirmInput !== 'DELETE';
@@ -408,42 +366,6 @@ export default function SettingsPage() {
                 <h1 className="text-2xl font-semibold text-center flex items-center justify-center">
                     <SettingsIcon className="mr-2 h-6 w-6 text-accent" /> Settings
                 </h1>
-
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="text-lg flex items-center"><Bell className="mr-2 h-5 w-5 text-accent" />Reminders</CardTitle>
-                        <FormDescription>Manage your cycle notifications. (Actual notifications require app setup)</FormDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                            <div className="space-y-0.5">
-                                <FormLabel htmlFor="period-reminder-switch" className="text-base flex items-center">Period Start Prediction</FormLabel>
-                            </div>
-                            <FormControl>
-                                <Switch
-                                    id="period-reminder-switch"
-                                    checked={periodReminder}
-                                    onCheckedChange={handlePeriodReminderChange}
-                                    aria-label="Toggle period start prediction reminder"
-                                />
-                            </FormControl>
-                        </FormItem>
-                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                            <div className="space-y-0.5">
-                                <FormLabel htmlFor="fertile-reminder-switch" className="text-base flex items-center">Fertile Window Start</FormLabel>
-                            </div>
-                            <FormControl>
-                                <Switch
-                                    id="fertile-reminder-switch"
-                                    checked={fertileReminder}
-                                    onCheckedChange={handleFertileReminderChange}
-                                    aria-label="Toggle fertile window start reminder"
-                                />
-                            </FormControl>
-                        </FormItem>
-                        {/* Pill reminder UI removed */}
-                    </CardContent>
-                </Card>
 
                 <Card>
                     <CardHeader>
@@ -502,8 +424,7 @@ export default function SettingsPage() {
                         <Button
                             variant="outline"
                             className="w-full"
-                            disabled={!appLock} // Button is enabled if app lock is ON, regardless of PIN set status initially.
-                                              // The dialog will handle "Set PIN" vs "Change PIN".
+                            disabled={!appLock}
                             onClick={handleOpenPinDialog}
                         >
                             {pinIsSet ? 'Change PIN' : 'Set PIN'}
@@ -587,8 +508,8 @@ export default function SettingsPage() {
                         </AlertDialog>
                     </CardContent>
                 </Card>
-                {/* About card removed */}
             </div>
         </Form>
     );
 }
+
