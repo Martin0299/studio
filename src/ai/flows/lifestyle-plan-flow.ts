@@ -14,6 +14,7 @@ import { z } from 'genkit';
 
 // Define input schema
 const LifestylePlanInputSchema = z.object({
+  age: z.number().optional().describe('User\'s age in years.'),
   weightKg: z.number().optional().describe('User\'s current weight in kilograms.'),
   heightCm: z.number().optional().describe('User\'s current height in centimeters.'),
   pregnancyStage: z.enum(['Trying to Conceive', '1st Trimester', '2nd Trimester', '3rd Trimester', 'Postpartum']).describe('Current stage of pregnancy or planning.'),
@@ -41,6 +42,7 @@ const lifestylePrompt = ai.definePrompt({
 You are professional, knowledgeable, and assertive in your recommendations.
 
 Based on the user's provided information:
+- Age: {{#if age}}{{age}} years{{else}}Not provided{{/if}}
 - Weight: {{#if weightKg}}{{weightKg}} kg{{else}}Not provided{{/if}}
 - Height: {{#if heightCm}}{{heightCm}} cm{{else}}Not provided{{/if}}
 - Stage: {{{pregnancyStage}}}

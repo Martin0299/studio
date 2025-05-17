@@ -153,6 +153,7 @@ export default function BabyPlanningPage() {
   const { toast } = useToast();
 
   // Lifestyle Tab State
+  const [age, setAge] = React.useState<string>('');
   const [weight, setWeight] = React.useState<string>('');
   const [height, setHeight] = React.useState<string>('');
   const [pregnancyStage, setPregnancyStage] = React.useState<PregnancyStage | undefined>(undefined);
@@ -186,6 +187,7 @@ export default function BabyPlanningPage() {
     if (storedInputs) {
       try {
         const parsedInputs = JSON.parse(storedInputs);
+        setAge(parsedInputs.age || '');
         setWeight(parsedInputs.weight || '');
         setHeight(parsedInputs.height || '');
         setPregnancyStage(parsedInputs.pregnancyStage || undefined);
@@ -202,9 +204,9 @@ export default function BabyPlanningPage() {
 
   // Save lifestyle inputs
   React.useEffect(() => {
-    const inputsToSave = { weight, height, pregnancyStage, gestationalAge };
+    const inputsToSave = { age, weight, height, pregnancyStage, gestationalAge };
     localStorage.setItem(LIFESTYLE_INPUTS_STORAGE_KEY, JSON.stringify(inputsToSave));
-  }, [weight, height, pregnancyStage, gestationalAge]);
+  }, [age, weight, height, pregnancyStage, gestationalAge]);
 
 
   const handleCheckedChange = (itemId: string, checked: boolean) => {
@@ -230,6 +232,7 @@ export default function BabyPlanningPage() {
 
     try {
       const result = await generateLifestylePlan({
+        age: age ? parseInt(age) : undefined,
         weightKg: weight ? parseFloat(weight) : undefined,
         heightCm: height ? parseFloat(height) : undefined,
         pregnancyStage,
@@ -337,6 +340,10 @@ export default function BabyPlanningPage() {
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="age">Age (Years)</Label>
+                  <Input id="age" type="number" placeholder="e.g., 30" value={age} onChange={(e) => setAge(e.target.value)} />
+                </div>
                 <div>
                   <Label htmlFor="weight">Weight (kg)</Label>
                   <Input id="weight" type="number" placeholder="e.g., 65" value={weight} onChange={(e) => setWeight(e.target.value)} />
