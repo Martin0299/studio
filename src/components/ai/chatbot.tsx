@@ -1,12 +1,14 @@
+
 'use client';
 
 import * as React from 'react';
 import { chatWithHealthVisitor } from '@/ai/flows/health-visitor-chat-flow';
+import type { ChatInput } from '@/ai/flows/health-visitor-chat-flow'; // Import type for history
 import { Input } from '@/components/ui/input';
-import { Button, buttonVariants } from '@/components/ui/button'; // Added buttonVariants import
+import { Button, buttonVariants } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { SendHorizontal, User, Bot, Loader2, MicOff, Trash2 } from 'lucide-react'; // Added Trash2
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { SendHorizontal, User, Bot, Loader2, MicOff, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -20,36 +22,35 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
     AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"; // Added AlertDialog components
+} from "@/components/ui/alert-dialog";
 
 interface Message {
   id: string;
   sender: 'user' | 'bot';
   text: string | React.ReactNode; // Allow ReactNode for loading state etc.
+  role?: 'User' | 'Luna'; // For history, align with AI flow
 }
 
-const MAX_DAILY_MESSAGES = 5;
+const MAX_DAILY_MESSAGES = 8; // Changed from 5 to 8
 const MESSAGE_COUNT_KEY = 'chatMessageCount';
 const LAST_MESSAGE_DATE_KEY = 'chatLastMessageDate';
-const CHAT_MESSAGES_KEY = 'chatMessages'; // Key for localStorage
+const CHAT_MESSAGES_KEY = 'chatMessages';
 
 const initialMessage: Message = {
   id: 'initial',
   sender: 'bot',
+  role: 'Luna',
   text: "Hello! I'm Luna, your professional, knowledgeable, and assertive virtual health visitor and maternity nurse. How can I help you today with questions about pregnancy, planning, or your little ones?",
 };
 
 export default function Chatbot() {
   const [messages, setMessages] = React.useState<Message[]>(() => {
-    // Load messages from localStorage on initial render
     if (typeof window !== 'undefined') {
       const storedMessages = localStorage.getItem(CHAT_MESSAGES_KEY);
       if (storedMessages) {
         try {
-          const parsedMessages = JSON.parse(storedMessages);
-          // Basic validation
+          const parsedMessages = JSON.parse(storedMessages) as Message[];
           if (Array.isArray(parsedMessages) && parsedMessages.length > 0) {
-              // Ensure the first message is always the initial bot message if history is loaded
               if (parsedMessages[0]?.id !== initialMessage.id) {
                   return [initialMessage, ...parsedMessages];
               }
@@ -57,11 +58,10 @@ export default function Chatbot() {
           }
         } catch (error) {
           console.error("Error parsing stored chat messages:", error);
-          // Fallback to initial message if parsing fails
         }
       }
     }
-    return [initialMessage]; // Default initial message
+    return [initialMessage];
   });
 
   const [input, setInput] = React.useState('');
@@ -72,10 +72,8 @@ export default function Chatbot() {
   const scrollAreaRef = React.useRef<HTMLDivElement>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
 
-
-  // Function to check and update message limit
   const checkAndUpdateLimit = React.useCallback(() => {
-    if (typeof window === 'undefined') return { currentCount: 0, today: format(new Date(), 'yyyy-MM-dd'), limitReached: false }; // Ensure limitReached is returned
+    if (typeof window === 'undefined') return { currentCount: 0, today: format(new Date(), 'yyyy-MM-dd'), limitReached: false };
 
     const today = format(new Date(), 'yyyy-MM-dd');
     const lastDate = localStorage.getItem(LAST_MESSAGE_DATE_KEY);
@@ -84,7 +82,6 @@ export default function Chatbot() {
     if (lastDate === today) {
       currentCount = parseInt(localStorage.getItem(MESSAGE_COUNT_KEY) || '0', 10);
     } else {
-      // Reset count if it's a new day
       localStorage.setItem(MESSAGE_COUNT_KEY, '0');
       localStorage.setItem(LAST_MESSAGE_DATE_KEY, today);
     }
@@ -96,14 +93,10 @@ export default function Chatbot() {
     return { currentCount, today, limitReached };
   }, []);
 
-
-  // Check limit on mount
   React.useEffect(() => {
     checkAndUpdateLimit();
   }, [checkAndUpdateLimit]);
 
-
-  // Scroll to bottom and save messages when they change
   React.useEffect(() => {
     if (scrollAreaRef.current) {
       scrollAreaRef.current.scrollTo({
@@ -111,14 +104,11 @@ export default function Chatbot() {
         behavior: 'smooth',
       });
     }
-    // Save messages to localStorage whenever they change
-    if (typeof window !== 'undefined' && messages.length > 0) { // Only save if there are messages
+    if (typeof window !== 'undefined' && messages.length > 0) {
       try {
-        // Filter out temporary loading messages before saving
         const messagesToSave = messages.filter(msg => !(typeof msg.text !== 'string' && msg.id.startsWith('bot-loading-')));
-        // Don't save if only the initial message exists
         if (messagesToSave.length === 1 && messagesToSave[0].id === initialMessage.id) {
-             localStorage.removeItem(CHAT_MESSAGES_KEY); // Clear storage if only initial message left
+             localStorage.removeItem(CHAT_MESSAGES_KEY);
         } else if (messagesToSave.length > 0) {
              localStorage.setItem(CHAT_MESSAGES_KEY, JSON.stringify(messagesToSave));
         }
@@ -141,14 +131,13 @@ export default function Chatbot() {
         title: "Chat Cleared",
         description: "Your conversation history has been cleared.",
      });
-     inputRef.current?.focus(); // Refocus input after clearing
+     inputRef.current?.focus();
   };
 
   const handleSubmit = async (e?: React.FormEvent<HTMLFormElement>) => {
     e?.preventDefault();
     if (!input.trim() || isLoading || isLimitReached) return;
 
-    // Re-check limit before sending
     const { currentCount: countBeforeSend, limitReached: updatedLimitReached } = checkAndUpdateLimit();
     if (updatedLimitReached) {
          toast({
@@ -156,22 +145,20 @@ export default function Chatbot() {
             description: `You can send up to ${MAX_DAILY_MESSAGES} messages per day. Please try again tomorrow.`,
             variant: "destructive",
          });
-        return; // Stop submission
+        return;
     }
-
 
     const userMessage: Message = {
       id: `user-${Date.now()}`,
       sender: 'user',
+      role: 'User',
       text: input.trim(),
     };
 
-    // Update state optimistically with user message first
     setMessages((prev) => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
 
-    // Increment count and update localStorage AFTER sending
     const newCount = countBeforeSend + 1;
     if (typeof window !== 'undefined') {
         localStorage.setItem(MESSAGE_COUNT_KEY, newCount.toString());
@@ -181,21 +168,33 @@ export default function Chatbot() {
         setIsLimitReached(true);
     }
 
-    // Add a temporary loading message from the bot
     const loadingMessageId = `bot-loading-${Date.now()}`;
     setMessages((prev) => [
         ...prev,
-        { id: loadingMessageId, sender: 'bot', text: <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> }
+        { id: loadingMessageId, sender: 'bot', role: 'Luna', text: <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /> }
     ]);
 
     try {
-      const response = await chatWithHealthVisitor({ message: userMessage.text as string });
+      // Prepare history for the AI flow
+      const chatHistory: ChatInput['history'] = messages
+        .filter(msg => msg.id !== loadingMessageId && msg.id !== 'initial' && msg.text && typeof msg.text === 'string') // Exclude initial, loading, and non-string messages
+        .map(msg => ({
+          role: msg.role || (msg.sender === 'user' ? 'User' : 'Luna'), // Ensure role is set
+          text: msg.text as string,
+        }));
+      if (messages.length > 1 && messages[0].id === initialMessage.id && typeof messages[0].text === 'string') {
+        // Include initial message if it's not the only one and is a string
+        // This is implicitly handled if 'initial' is filtered out above and messages[0] is string.
+      }
+
+
+      const response = await chatWithHealthVisitor({ message: userMessage.text as string, history: chatHistory });
       const botMessage: Message = {
         id: `bot-${Date.now()}`,
         sender: 'bot',
+        role: 'Luna',
         text: response.response,
       };
-      // Replace loading message with actual response
       setMessages((prev) => prev.map(msg => msg.id === loadingMessageId ? botMessage : msg));
     } catch (error) {
       console.error('Error calling chat flow:', error);
@@ -204,15 +203,14 @@ export default function Chatbot() {
         description: 'Sorry, something went wrong while getting a response.',
         variant: 'destructive',
       });
-      // Replace loading message with an error message
        setMessages((prev) => prev.map(msg => msg.id === loadingMessageId ? {
-           id: loadingMessageId, // Keep ID stable if needed, or generate new
+           id: loadingMessageId,
            sender: 'bot',
+           role: 'Luna',
            text: "Sorry, I couldn't get a response. Please try again later."
         } : msg));
     } finally {
       setIsLoading(false);
-       // Refocus input after submission/response (check limit again)
        const { limitReached: finalLimitCheck } = checkAndUpdateLimit();
        if (!finalLimitCheck) {
            inputRef.current?.focus();
@@ -234,19 +232,17 @@ export default function Chatbot() {
             >
               {message.sender === 'bot' && (
                 <Avatar className="h-8 w-8 border">
-                  {/* Simple bot avatar */}
                    <AvatarFallback><Bot className="h-5 w-5 text-accent" /></AvatarFallback>
                 </Avatar>
               )}
               <div
                 className={cn(
-                  'max-w-[75%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap shadow-sm', // Added shadow
+                  'max-w-[75%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap shadow-sm',
                   message.sender === 'user'
                     ? 'bg-primary text-primary-foreground'
                     : 'bg-muted text-muted-foreground'
                 )}
               >
-                {/* Render loading spinner centered if it's the loading message */}
                  {typeof message.text !== 'string' && message.id.startsWith('bot-loading-') ? (
                     <div className="flex items-center justify-center p-1">{message.text}</div>
                  ) : (
@@ -263,7 +259,7 @@ export default function Chatbot() {
         </div>
       </ScrollArea>
       <div className="border-t p-4">
-        <div className="flex items-center gap-2 mb-2"> {/* Wrapper for input and send button */}
+        <div className="flex items-center gap-2 mb-2">
              <form onSubmit={handleSubmit} className="flex flex-1 items-center gap-2">
                 <Input
                     ref={inputRef}
@@ -280,14 +276,13 @@ export default function Chatbot() {
                     <span className="sr-only">{isLimitReached ? "Limit Reached" : "Send message"}</span>
                 </Button>
              </form>
-             {/* Clear History Button */}
              <AlertDialog>
                 <AlertDialogTrigger asChild>
                      <Button
                         type="button"
                         size="icon"
                         variant="outline"
-                        disabled={messages.length <= 1} // Disable if only initial message exists
+                        disabled={messages.length <= 1}
                      >
                         <Trash2 className="h-4 w-4" />
                         <span className="sr-only">Clear Chat History</span>
@@ -309,7 +304,7 @@ export default function Chatbot() {
                 </AlertDialogContent>
              </AlertDialog>
         </div>
-         <p className="text-xs text-muted-foreground mt-1 text-center"> {/* Reduced margin-top */}
+         <p className="text-xs text-muted-foreground mt-1 text-center">
              {isLimitReached
                 ? `Daily message limit (${MAX_DAILY_MESSAGES}) reached. Please check back tomorrow.`
                 : `You have ${MAX_DAILY_MESSAGES - messageCount} messages left today. Luna is an AI assistant. Information provided is not medical advice. Consult a healthcare professional for medical concerns.`
