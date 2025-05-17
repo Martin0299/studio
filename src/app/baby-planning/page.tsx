@@ -6,9 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; // Added Tabs
 import { cn } from "@/lib/utils";
-// Added Baby, Wallet, FileText, Building icons
-import { BookOpen, HeartHandshake, Stethoscope, Utensils, Activity, MapPin, CalendarCheck2, Brain, Baby, Wallet, FileText, Building } from 'lucide-react';
+import { BookOpen, HeartHandshake, Stethoscope, Utensils, Activity, MapPin, CalendarCheck2, Brain, Baby, Wallet, FileText, Building, Salad, Dumbbell } from 'lucide-react'; // Added Salad, Dumbbell for new tabs
 
 // Define the structure for checklist items
 interface ChecklistItem {
@@ -53,7 +53,6 @@ const planningChecklist: ChecklistSection[] = [
       { id: 'nutrition-limit-fish', label: 'Limit high-mercury fish', details: 'Avoid shark, swordfish, king mackerel, tilefish. Limit albacore tuna.' },
       { id: 'nutrition-food-safety', label: 'Practice good food safety', details: 'Avoid unpasteurized dairy, undercooked meats/eggs, deli meats unless heated.' },
       { id: 'nutrition-limit-processed', label: 'Reduce processed foods and added sugars', details: 'Focus on whole, unprocessed foods.' },
-      // { id: 'nutrition-vitamin-d', label: 'Check Vitamin D levels', details: 'Discuss supplementation with your doctor if needed.' }, // Optional, consult doctor
     ],
   },
   {
@@ -80,7 +79,6 @@ const planningChecklist: ChecklistSection[] = [
       { id: 'cycle-track', label: 'Track your menstrual cycles', details: 'Use LunaBloom or another method to understand your cycle length and regularity.' },
       { id: 'cycle-fertile', label: 'Identify your fertile window', details: 'Use ovulation predictor kits, basal body temperature, or cervical mucus tracking.' },
       { id: 'cycle-timing', label: 'Time intercourse during the fertile window', details: 'Typically the 5 days before and the day of ovulation.' },
-      // { id: 'cycle-lube', label: 'Use fertility-friendly lubricants if needed', details: 'Some standard lubricants can harm sperm.' }, // Optional
     ],
   },
   {
@@ -104,7 +102,6 @@ const planningChecklist: ChecklistSection[] = [
       { id: 'finance-insurance', label: 'Understand your health insurance coverage', details: 'Check maternity benefits, provider network, deductibles, copays.' },
       { id: 'finance-leave', label: 'Research parental leave policies', details: 'Understand options available through work and government programs.' },
       { id: 'finance-life-insurance', label: 'Consider life and disability insurance', details: 'Review needs for financial protection.' },
-      // { id: 'finance-will', label: 'Update or create a will', details: 'Consider guardianship for your child.' }, // Optional
     ],
   },
   {
@@ -116,13 +113,12 @@ const planningChecklist: ChecklistSection[] = [
       { id: 'env-toxins-work', label: 'Assess potential workplace hazards', details: 'Discuss concerns about chemical exposure, radiation, or heavy lifting with your employer/doctor.' },
       { id: 'env-pesticides', label: 'Minimize exposure to pesticides', details: 'Wash produce thoroughly, consider organic options.' },
       { id: 'env-plastics', label: 'Reduce exposure to BPA and phthalates', details: 'Avoid microwaving food in plastic, choose glass or stainless steel containers.' },
-      // { id: 'env-partner', label: 'Partner should also limit environmental exposures.' }, // Optional
     ],
   },
     {
     id: 'healthcare-provider',
     title: 'Choosing Healthcare Provider',
-    icon: Building, // Changed icon
+    icon: Building,
     items: [
       { id: 'provider-research', label: 'Research potential OB-GYNs or midwives', details: 'Consider hospital affiliations, birthing philosophies, patient reviews.' },
       { id: 'provider-schedule', label: 'Schedule consultations if desired', details: 'Meet potential providers to see if they are a good fit.' },
@@ -146,7 +142,6 @@ const CHECKLIST_STORAGE_KEY = 'babyPlanningChecklist';
 export default function BabyPlanningPage() {
   const [checkedItems, setCheckedItems] = React.useState<Record<string, boolean>>({});
 
-  // Load checked state from localStorage on mount
   React.useEffect(() => {
     const storedState = localStorage.getItem(CHECKLIST_STORAGE_KEY);
     if (storedState) {
@@ -161,7 +156,6 @@ export default function BabyPlanningPage() {
     }
   }, []);
 
-  // Save checked state to localStorage whenever it changes
   React.useEffect(() => {
     localStorage.setItem(CHECKLIST_STORAGE_KEY, JSON.stringify(checkedItems));
   }, [checkedItems]);
@@ -175,65 +169,126 @@ export default function BabyPlanningPage() {
 
   return (
     <div className="container mx-auto py-6 px-4 max-w-lg space-y-8">
-      <h1 className="text-3xl font-bold text-center mb-4 flex items-center justify-center text-pink-600 dark:text-pink-400">
-        <Baby className="mr-2 h-8 w-8" /> {/* Or HeartHandshake */}
-        Baby Planning Checklist
+      <h1 className="text-3xl font-bold text-center mb-2 flex items-center justify-center text-pink-600 dark:text-pink-400">
+        <Baby className="mr-2 h-8 w-8" />
+        Baby Planning Center
       </h1>
-      <p className="text-center text-muted-foreground mb-8">
+      <p className="text-center text-muted-foreground mb-6 text-sm">
         A comprehensive guide to help you prepare for a healthy conception and pregnancy. Remember to consult your healthcare provider for personalized advice.
       </p>
 
-      <Accordion type="multiple" defaultValue={planningChecklist.map(s => s.id)} className="w-full space-y-4">
-        {planningChecklist.map((section) => {
-          const Icon = section.icon;
-          return (
-            <AccordionItem key={section.id} value={section.id} className="border rounded-lg shadow-md bg-card overflow-hidden">
-              <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-muted/50 transition-colors">
-                 <div className="flex items-center text-lg font-semibold">
-                    <Icon className="mr-3 h-6 w-6 text-accent" />
-                    {section.title}
-                 </div>
-              </AccordionTrigger>
-              <AccordionContent className="px-6 pb-4 pt-2 border-t bg-background">
-                <ul className="space-y-3">
-                  {section.items.map((item) => (
-                    <li key={item.id} className="flex items-start space-x-3">
-                      <Checkbox
-                        id={item.id}
-                        checked={!!checkedItems[item.id]}
-                        onCheckedChange={(checked) => handleCheckedChange(item.id, !!checked)}
-                        className="mt-1 flex-shrink-0 border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
-                        aria-labelledby={`${item.id}-label`} // Link checkbox to label for accessibility
-                      />
-                      <div className="grid gap-1.5 leading-snug">
-                        <Label
-                          id={`${item.id}-label`} // Unique ID for label
-                          htmlFor={item.id}
-                          className={cn(
-                              "font-medium cursor-pointer",
-                              checkedItems[item.id] && "line-through text-muted-foreground"
-                          )}
-                        >
-                          {item.label}
-                        </Label>
-                        {item.details && (
-                          <p className={cn(
-                              "text-sm text-muted-foreground",
-                              checkedItems[item.id] && "line-through"
-                           )}>
-                            {item.details}
-                          </p>
-                        )}
-                      </div>
-                    </li>
-                  ))}
+      <Tabs defaultValue="checklist" className="w-full">
+        <TabsList className="grid w-full grid-cols-3 mb-6">
+          <TabsTrigger value="checklist">
+            <FileText className="mr-2 h-4 w-4" /> Checklist
+          </TabsTrigger>
+          <TabsTrigger value="lifestyle">
+            <Dumbbell className="mr-2 h-4 w-4" /> Lifestyle
+          </TabsTrigger>
+          <TabsTrigger value="meal">
+            <Salad className="mr-2 h-4 w-4" /> Meal Plan
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="checklist">
+          <Accordion type="multiple" defaultValue={planningChecklist.map(s => s.id)} className="w-full space-y-4">
+            {planningChecklist.map((section) => {
+              const Icon = section.icon;
+              return (
+                <AccordionItem key={section.id} value={section.id} className="border rounded-lg shadow-md bg-card overflow-hidden">
+                  <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-muted/50 transition-colors">
+                     <div className="flex items-center text-lg font-semibold">
+                        <Icon className="mr-3 h-6 w-6 text-accent" />
+                        {section.title}
+                     </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-6 pb-4 pt-2 border-t bg-background">
+                    <ul className="space-y-3">
+                      {section.items.map((item) => (
+                        <li key={item.id} className="flex items-start space-x-3">
+                          <Checkbox
+                            id={item.id}
+                            checked={!!checkedItems[item.id]}
+                            onCheckedChange={(checked) => handleCheckedChange(item.id, !!checked)}
+                            className="mt-1 flex-shrink-0 border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+                            aria-labelledby={`${item.id}-label`}
+                          />
+                          <div className="grid gap-1.5 leading-snug">
+                            <Label
+                              id={`${item.id}-label`}
+                              htmlFor={item.id}
+                              className={cn(
+                                  "font-medium cursor-pointer",
+                                  checkedItems[item.id] && "line-through text-muted-foreground"
+                              )}
+                            >
+                              {item.label}
+                            </Label>
+                            {item.details && (
+                              <p className={cn(
+                                  "text-sm text-muted-foreground",
+                                  checkedItems[item.id] && "line-through"
+                               )}>
+                                {item.details}
+                              </p>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </AccordionContent>
+                </AccordionItem>
+              );
+            })}
+          </Accordion>
+        </TabsContent>
+
+        <TabsContent value="lifestyle">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center"><Dumbbell className="mr-2 h-6 w-6 text-accent" />Lifestyle Recommendations</CardTitle>
+              <CardDescription>Tips for a healthy lifestyle during pregnancy planning.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-muted-foreground">Detailed lifestyle advice and tips will be available here soon. This section will cover topics like exercise routines suitable for preconception, stress management techniques, sleep hygiene, and habits to cultivate for a healthy pregnancy.</p>
+              {/* Placeholder for more detailed lifestyle content */}
+              <div>
+                <h3 className="font-semibold text-md mb-2">Key Areas:</h3>
+                <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
+                  <li>Preconception fitness guidelines</li>
+                  <li>Stress reduction strategies</li>
+                  <li>Optimizing sleep for fertility</li>
+                  <li>Environmental toxin awareness</li>
+                  <li>Mind-body connection practices</li>
                 </ul>
-              </AccordionContent>
-            </AccordionItem>
-          );
-        })}
-      </Accordion>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="meal">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center"><Salad className="mr-2 h-6 w-6 text-accent" />Meal Plan Suggestions</CardTitle>
+              <CardDescription>Nutritional guidance and sample meal ideas for preconception.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-muted-foreground">Example meal plans and dietary recommendations tailored for fertility and early pregnancy will be featured here. This section will focus on nutrient-dense foods, essential vitamins, and healthy eating patterns.</p>
+              {/* Placeholder for more detailed meal plan content */}
+               <div>
+                <h3 className="font-semibold text-md mb-2">Focus On:</h3>
+                <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
+                  <li>Folate-rich foods</li>
+                  <li>Iron and Vitamin D sources</li>
+                  <li>Healthy fats and proteins</li>
+                  <li>Hydration strategies</li>
+                  <li>Foods to limit or avoid</li>
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
-
