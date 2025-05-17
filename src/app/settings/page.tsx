@@ -687,18 +687,9 @@ export default function SettingsPage() {
             </Card>
 
 
-             {/* About Card */}
-            <Card>
-                <CardHeader>
-                    <CardTitle className="text-lg flex items-center"><CircleHelp className="mr-2 h-5 w-5"/>About</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                    <p className="text-sm text-muted-foreground">App Version: {appVersion}</p>
-                 </CardContent>
-            </Card>
-
              {/* No overall save button needed as settings are applied instantly */}
         </div>
         </Form>
     );
 }
+
