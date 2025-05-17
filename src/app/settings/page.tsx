@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Palette, Lock, Bell, Download, Trash2, Upload, CircleHelp } from 'lucide-react'; // Icons - Removed Pill
+import { Palette, Lock, Bell, Download, Trash2, Upload, Pill } from 'lucide-react'; // Icons - Removed CircleHelp
 import { useCycleData, LogData } from '@/context/CycleDataContext'; // Import context
 import { cn } from '@/lib/utils'; // Import cn
 import { format } from 'date-fns'; // Import date-fns functions
@@ -59,7 +59,9 @@ export default function SettingsPage() {
     // -- Reminder State --
     const [periodReminder, setPeriodReminder] = React.useState<boolean>(true);
     const [fertileReminder, setFertileReminder] = React.useState<boolean>(true);
-    // Pill reminder state removed
+    const [pillReminder, setPillReminder] = React.useState<boolean>(false);
+    const [pillReminderTime, setPillReminderTime] = React.useState<string>('09:00');
+
 
     // -- Security State --
     const [appLock, setAppLock] = React.useState<boolean>(false);
@@ -74,7 +76,8 @@ export default function SettingsPage() {
         const storedAccent = localStorage.getItem('accentColor') as AccentColor | null;
         const storedPeriodReminder = localStorage.getItem('periodReminder');
         const storedFertileReminder = localStorage.getItem('fertileReminder');
-        // Pill reminder localStorage loading removed
+        const storedPillReminder = localStorage.getItem('pillReminder');
+        const storedPillReminderTime = localStorage.getItem('pillReminderTime');
         const storedAppLock = localStorage.getItem('appLock');
 
 
@@ -95,7 +98,8 @@ export default function SettingsPage() {
 
         setPeriodReminder(storedPeriodReminder ? JSON.parse(storedPeriodReminder) : true);
         setFertileReminder(storedFertileReminder ? JSON.parse(storedFertileReminder) : true);
-        // Pill reminder state setting removed
+        setPillReminder(storedPillReminder ? JSON.parse(storedPillReminder) : false);
+        setPillReminderTime(storedPillReminderTime || '09:00');
 
         const lockEnabled = storedAppLock ? JSON.parse(storedAppLock) : false;
         setAppLock(lockEnabled);
@@ -127,12 +131,14 @@ export default function SettingsPage() {
     const handleThemeChange = (newTheme: string) => {
         const validTheme = newTheme as Theme;
         setTheme(validTheme);
+        localStorage.setItem('theme', validTheme);
         toast({ title: "Theme Updated", description: `Theme set to ${validTheme}.` });
     };
 
     const handleAccentChange = (newAccent: string) => {
         const validAccent = newAccent as AccentColor;
         setAccentColor(validAccent);
+        localStorage.setItem('accentColor', validAccent);
         toast({ title: "Accent Color Updated", description: `Accent set to ${validAccent}.` });
     };
     
@@ -155,7 +161,25 @@ export default function SettingsPage() {
         });
     };
 
-    // Pill reminder handlers removed
+    const handlePillReminderChange = (checked: boolean) => {
+        setPillReminder(checked);
+        localStorage.setItem('pillReminder', JSON.stringify(checked));
+        toast({
+            title: "Reminder Updated",
+            description: `Contraceptive pill reminder ${checked ? 'enabled' : 'disabled'}. (Notifications not yet active)`,
+        });
+    };
+
+    const handlePillReminderTimeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const newTime = e.target.value;
+        setPillReminderTime(newTime);
+        localStorage.setItem('pillReminderTime', newTime);
+        toast({
+            title: "Reminder Time Updated",
+            description: `Pill reminder time set to ${newTime}. (Notifications not yet active)`,
+        });
+    };
+
 
     const handleAppLockChange = (checked: boolean) => {
         setAppLock(checked);
@@ -193,7 +217,7 @@ export default function SettingsPage() {
             setPinIsSet(true);
         } else {
              if (appLock && !getPinStatus()) {
-                 handleAppLockChange(false);
+                 handleAppLockChange(false); // Automatically disable app lock if PIN setup was cancelled
                  toast({
                     title: "App Lock Disabled",
                     description: "PIN setup was cancelled. App Lock has been disabled.",
@@ -223,7 +247,7 @@ export default function SettingsPage() {
             const backupData: Record<string, any> = {};
             for (let i = 0; i < localStorage.length; i++) {
                 const key = localStorage.key(i);
-                if (key && (key.startsWith('cycleLog_') || ['theme', 'accentColor', 'periodReminder', 'fertileReminder', /* 'pillReminder', 'pillReminderTime' removed */ 'appLock', 'appPinStatus', 'appPinHash', 'healthTipsCache'].includes(key))) {
+                if (key && (key.startsWith('cycleLog_') || ['theme', 'accentColor', 'periodReminder', 'fertileReminder', 'pillReminder', 'pillReminderTime', 'appLock', 'appPinStatus', 'appPinHash', 'healthTipsCache', 'babyPlanningChecklist', 'babyPlanningLifestyleInputs', 'babyPlanningLifestylePlan', 'babyPlanningMealPlanInputs', 'babyPlanningMealPlan'].includes(key))) {
                      const value = localStorage.getItem(key);
                     if (value !== null) {
                         backupData[key] = value;
@@ -258,7 +282,7 @@ export default function SettingsPage() {
                  return;
             }
 
-            const headers = ["date", "periodFlow", "isPeriodEnd", "symptoms", "mood", "sexualActivityCount", "protectionUsed", "orgasm", "notes", "tookPill"];
+            const headers = ["date", "periodFlow", "isPeriodEnd", "symptoms", "mood", "sexualActivityCount", "protectionUsed", "orgasm", "tookPill", "notes"];
             const csvRows = [
                 headers.join(','),
                 ...logsToExport.map(log => [
@@ -270,8 +294,8 @@ export default function SettingsPage() {
                     log.sexualActivityCount ?? 0,
                     log.protectionUsed !== undefined ? (log.protectionUsed ? 'true' : 'false') : '',
                     log.orgasm !== undefined ? (log.orgasm ? 'true' : 'false') : '',
+                    log.tookPill !== undefined ? (log.tookPill ? 'true' : 'false') : '',
                     `"${(log.notes ?? '').replace(/"/g, '""')}"`,
-                    log.tookPill ? 'true' : 'false'
                 ].join(','))
             ];
             const csvString = csvRows.join('\n');
@@ -314,7 +338,7 @@ export default function SettingsPage() {
                 let settingsImportedCount = 0;
                 for (const key in importedData) {
                     if (Object.prototype.hasOwnProperty.call(importedData, key)) {
-                        if (key.startsWith('cycleLog_') || ['theme', 'accentColor', 'periodReminder', 'fertileReminder', /* 'pillReminder', 'pillReminderTime' removed */ 'appLock', 'appPinStatus', 'appPinHash', 'healthTipsCache'].includes(key)) {
+                        if (key.startsWith('cycleLog_') || ['theme', 'accentColor', 'periodReminder', 'fertileReminder', 'pillReminder', 'pillReminderTime', 'appLock', 'appPinStatus', 'appPinHash', 'healthTipsCache', 'babyPlanningChecklist', 'babyPlanningLifestyleInputs', 'babyPlanningLifestylePlan', 'babyPlanningMealPlanInputs', 'babyPlanningMealPlan'].includes(key))) {
                             if (key.startsWith('cycleLog_')) {
                                 const entry = importedData[key];
                                 if (typeof entry === 'string') {
@@ -355,7 +379,8 @@ export default function SettingsPage() {
                     description: `Imported ${importedCount} log entries and ${settingsImportedCount} settings. Please refresh the app if changes aren't reflected immediately.`,
                 });
 
-                refreshData();
+                refreshData(); // Refresh data in context
+                // Force reload to apply theme/accent and other settings from localStorage immediately
                 window.location.reload();
 
             } catch (error: any) {
@@ -367,7 +392,7 @@ export default function SettingsPage() {
                 });
             } finally {
                 setIsImporting(false);
-                event.target.value = '';
+                event.target.value = ''; // Clear the file input
             }
         };
 
@@ -379,7 +404,7 @@ export default function SettingsPage() {
                 variant: "destructive",
              });
              setIsImporting(false);
-             event.target.value = '';
+             event.target.value = ''; // Clear the file input
         };
 
         reader.readAsText(file);
@@ -393,7 +418,6 @@ export default function SettingsPage() {
     };
 
     const isDeleteDisabled = deleteConfirmInput !== 'DELETE';
-    const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || '0.1.0';
 
 
     return (
@@ -433,7 +457,41 @@ export default function SettingsPage() {
                             />
                         </FormControl>
                     </FormItem>
-                    {/* Contraceptive Pill Reminder Section Removed */}
+                     <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-0.5">
+                            <FormLabel htmlFor="pill-reminder-switch" className="text-base flex items-center">
+                                <Pill className="mr-2 h-5 w-5" /> Contraceptive Pill
+                            </FormLabel>
+                            <FormDescription className="text-xs">
+                                Daily reminder for your pill.
+                            </FormDescription>
+                        </div>
+                        <FormControl>
+                            <Switch
+                                id="pill-reminder-switch"
+                                checked={pillReminder}
+                                onCheckedChange={handlePillReminderChange}
+                                aria-label="Toggle contraceptive pill reminder"
+                            />
+                        </FormControl>
+                    </FormItem>
+                    {pillReminder && (
+                        <FormItem className="rounded-lg border p-4">
+                            <div className="flex flex-row items-center justify-between">
+                                <FormLabel htmlFor="pill-reminder-time" className="text-base">Reminder Time</FormLabel>
+                                <FormControl>
+                                    <Input
+                                        id="pill-reminder-time"
+                                        type="time"
+                                        value={pillReminderTime}
+                                        onChange={handlePillReminderTimeChange}
+                                        className="w-auto"
+                                    />
+                                </FormControl>
+                            </div>
+                            <FormMessage />
+                        </FormItem>
+                    )}
                 </CardContent>
             </Card>
 
@@ -530,7 +588,7 @@ export default function SettingsPage() {
                         disabled={isImporting}
                     >
                          {isImporting ? (
-                            <><CircleHelp className="animate-spin h-4 w-4 mr-2" /> Importing...</>
+                            <> <Upload className="animate-pulse h-4 w-4 mr-2" /> Importing...</>
                          ) : (
                              <><Upload className="h-4 w-4" /> Import Data (JSON)</>
                          )}
@@ -577,14 +635,6 @@ export default function SettingsPage() {
                             </AlertDialogFooter>
                         </AlertDialogContent>
                     </AlertDialog>
-                </CardContent>
-            </Card>
-             <Card>
-                <CardHeader>
-                    <CardTitle className="text-lg flex items-center"><CircleHelp className="mr-2 h-5 w-5"/>About</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                    <p className="text-sm text-muted-foreground">LunaBloom App Version: {appVersion}</p>
                 </CardContent>
             </Card>
         </div>
