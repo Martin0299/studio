@@ -38,7 +38,7 @@ const nextConfig: NextConfig = {
     ],
   },
   env: {
-    APP_VERSION: appVersion,
+    NEXT_PUBLIC_APP_VERSION: appVersion, // Changed to NEXT_PUBLIC_APP_VERSION
   },
 };
 

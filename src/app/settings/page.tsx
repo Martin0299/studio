@@ -21,25 +21,17 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Palette, Lock, Bell, Download, Trash2, CircleHelp, Upload, Pill, Languages } from 'lucide-react'; // Icons - Added Upload, Pill, Languages
+import { Palette, Lock, Bell, Download, Trash2, CircleHelp, Upload, Pill } from 'lucide-react'; // Icons - Added Upload, Pill
 import { useCycleData, LogData } from '@/context/CycleDataContext'; // Import context
 import { cn } from '@/lib/utils'; // Import cn
 import { format } from 'date-fns'; // Import date-fns functions
 import PinSetupDialog from '@/components/settings/PinSetupDialog'; // Import the new dialog
 import { setPinStatus, getPinStatus, clearPinStatus } from '@/lib/security'; // Import PIN utility functions
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 
 
 // Define theme type (Removed 'system')
 type Theme = 'light' | 'dark';
 type AccentColor = 'coral' | 'gold';
-type Language = 'en' | 'hu' | 'de';
 
 
 // Define helper components for Form structure (minimal versions)
@@ -64,7 +56,6 @@ export default function SettingsPage() {
     // -- Appearance State --
     const [theme, setTheme] = React.useState<Theme>('light');
     const [accentColor, setAccentColor] = React.useState<AccentColor>('coral');
-    const [language, setLanguage] = React.useState<Language>('en');
 
 
     // -- Reminder State --
@@ -85,7 +76,6 @@ export default function SettingsPage() {
     React.useEffect(() => {
         const storedTheme = localStorage.getItem('theme') as Theme | null;
         const storedAccent = localStorage.getItem('accentColor') as AccentColor | null;
-        const storedLanguage = localStorage.getItem('language') as Language | null;
         const storedPeriodReminder = localStorage.getItem('periodReminder');
         const storedFertileReminder = localStorage.getItem('fertileReminder');
         const storedPillReminder = localStorage.getItem('pillReminder');
@@ -109,14 +99,6 @@ export default function SettingsPage() {
             localStorage.setItem('accentColor', 'coral');
         }
         
-        // Set language
-        if (storedLanguage && ['en', 'hu', 'de'].includes(storedLanguage)) {
-            setLanguage(storedLanguage);
-        } else {
-            setLanguage('en'); // Default to English
-            localStorage.setItem('language', 'en');
-        }
-
 
         // Set reminders
         setPeriodReminder(storedPeriodReminder ? JSON.parse(storedPeriodReminder) : true);
@@ -156,16 +138,6 @@ export default function SettingsPage() {
     }, [accentColor]); // Run only when accentColor changes
 
 
-    // Apply language attribute to HTML element
-    React.useEffect(() => {
-        document.documentElement.lang = language;
-        localStorage.setItem('language', language);
-        // Here you would also trigger your i18n library to change the language
-        // For example: i18n.changeLanguage(language);
-        // This example doesn't include a full i18n setup, just sets the lang attribute.
-    }, [language]);
-
-
     // --- Handlers ---
 
     const handleThemeChange = (newTheme: string) => {
@@ -182,12 +154,6 @@ export default function SettingsPage() {
         toast({ title: "Accent Color Updated", description: `Accent set to ${validAccent}.` });
     };
     
-    const handleLanguageChange = (newLanguage: string) => {
-        const validLanguage = newLanguage as Language;
-        setLanguage(validLanguage);
-        toast({ title: "Language Updated", description: `Language set to ${validLanguage}. UI text will update after full i18n setup.` });
-    };
-
 
     const handlePeriodReminderChange = (checked: boolean) => {
         setPeriodReminder(checked);
@@ -307,7 +273,7 @@ export default function SettingsPage() {
             for (let i = 0; i < localStorage.length; i++) {
                 const key = localStorage.key(i);
                 // Only back up cycle logs and relevant settings
-                if (key && (key.startsWith('cycleLog_') || ['theme', 'accentColor', 'periodReminder', 'fertileReminder', 'pillReminder', 'pillReminderTime', 'appLock', 'appPinStatus', 'appPinHash', 'language', 'healthTipsCache'].includes(key))) {
+                if (key && (key.startsWith('cycleLog_') || ['theme', 'accentColor', 'periodReminder', 'fertileReminder', 'pillReminder', 'pillReminderTime', 'appLock', 'appPinStatus', 'appPinHash', 'healthTipsCache'].includes(key))) {
                      const value = localStorage.getItem(key);
                     if (value !== null) { // Ensure value is not null
                         backupData[key] = value;
@@ -343,7 +309,7 @@ export default function SettingsPage() {
             }
 
             // Basic CSV structure
-            const headers = ["date", "periodFlow", "isPeriodEnd", "symptoms", "mood", "sexualActivityCount", "protectionUsed", "orgasm", "notes"];
+            const headers = ["date", "periodFlow", "isPeriodEnd", "symptoms", "mood", "sexualActivityCount", "protectionUsed", "orgasm", "notes", "tookPill"];
             const csvRows = [
                 headers.join(','), // Header row
                 ...logsToExport.map(log => [
@@ -355,7 +321,8 @@ export default function SettingsPage() {
                     log.sexualActivityCount ?? 0,
                     log.protectionUsed !== undefined ? (log.protectionUsed ? 'true' : 'false') : '',
                     log.orgasm !== undefined ? (log.orgasm ? 'true' : 'false') : '',
-                    `"${(log.notes ?? '').replace(/"/g, '""')}"` // Quote notes, escape double quotes
+                    `"${(log.notes ?? '').replace(/"/g, '""')}"`, // Quote notes, escape double quotes
+                    log.tookPill ? 'true' : 'false' // Add tookPill status
                 ].join(','))
             ];
             const csvString = csvRows.join('\n');
@@ -407,7 +374,7 @@ export default function SettingsPage() {
                 for (const key in importedData) {
                     if (Object.prototype.hasOwnProperty.call(importedData, key)) {
                         // Only import keys that match the expected format/types
-                        if (key.startsWith('cycleLog_') || ['theme', 'accentColor', 'periodReminder', 'fertileReminder', 'pillReminder', 'pillReminderTime', 'appLock', 'appPinStatus', 'appPinHash', 'language', 'healthTipsCache'].includes(key)) {
+                        if (key.startsWith('cycleLog_') || ['theme', 'accentColor', 'periodReminder', 'fertileReminder', 'pillReminder', 'pillReminderTime', 'appLock', 'appPinStatus', 'appPinHash', 'healthTipsCache'].includes(key)) {
                             // Basic validation for cycleLog entries
                             if (key.startsWith('cycleLog_')) {
                                 const entry = importedData[key];
@@ -492,7 +459,7 @@ export default function SettingsPage() {
     };
 
     const isDeleteDisabled = deleteConfirmInput !== 'DELETE';
-    const appVersion = process.env.APP_VERSION || '0.0.0'; // Get version from env
+    const appVersion = process.env.NEXT_PUBLIC_APP_VERSION || '0.0.0'; // Changed to NEXT_PUBLIC_APP_VERSION
 
 
     return (
@@ -735,4 +702,3 @@ export default function SettingsPage() {
         </Form>
     );
 }
-
