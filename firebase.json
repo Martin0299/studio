@@ -9,7 +9,8 @@
     ],
     "frameworksBackend": {
       "region": "us-central1",
-      "maxInstances": 10
+      "maxInstances": 10,
+      "cpu": 1
     }
   }
 }
