@@ -1,0 +1,38 @@
+{
+  "name": "LunaBloom",
+  "short_name": "LunaBM",
+  "description": "Luna Bloom is a smart, elegant menstrual cycle tracker designed for women who want more than just calendar dots. Backed by AI, Luna Bloom helps you understand your body, track your cycle with ease, and get personalized insights to support your health, fertility, and well-being.",
+  "icons": [
+    {
+      "src": "/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/maskable-icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "scope": "/",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "id": "LunaBloom",
+  "categories": [
+    "fitness",
+    "food",
+    "health",
+    "kids",
+    "lifestyle",
+    "medical",
+    "personalization"
+  ]
+}

@@ -1,7 +1,6 @@
 
 'use client'; // Make RootLayout a client component
 
-import type {Metadata} from 'next';
 import Head from 'next/head'; // Import Head for metadata in client components
 import * as React from 'react'; // Import React for useEffect
 import { Inter } from 'next/font/google'; // Using Inter for a clean, readable sans-serif font
@@ -21,12 +20,6 @@ const inter = Inter({
 // Define theme and accent types
 type Theme = 'light' | 'dark'; // Removed 'system'
 type AccentColor = 'coral' | 'gold';
-
-// Metadata export is not allowed in Client Components.
-// export const metadata: Metadata = {
-//   title: 'LunaBloom', // Updated app name
-//   description: 'Track your cycle, embrace your health.', // Updated description
-// };
 
 export default function RootLayout({
   children,
@@ -88,11 +81,20 @@ export default function RootLayout({
   return (
     // Add suppressHydrationWarning to html tag to avoid warning from theme/accent application
     <html lang="en" suppressHydrationWarning>
-       {/* Metadata needs to be handled differently in client root layouts, typically in Head */}
       <Head>
         <title>LunaBloom</title>
         <meta name="description" content="Track your cycle, embrace your health." />
-        {/* Add other necessary meta tags or link tags here */}
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#000000"/>
+        {/* iOS PWA Meta Tags */}
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="LunaBloom" />
+        {/* Add links to apple-touch-icon if you have them, e.g.: */}
+        {/* <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" /> */}
+        
+        {/* Progressier PWA Script - ensure this is the one you intend to use */}
+        <script defer src="https://progressier.app/bYyBLsJhbLj8JHGUd37S/script.js"></script>
       </Head>
       <body className={cn(
           inter.variable,
@@ -120,4 +122,3 @@ export default function RootLayout({
     </html>
   );
 }
-
