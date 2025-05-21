@@ -1,7 +1,8 @@
 {
   "name": "LunaBloom",
   "short_name": "LunaBM",
-  "description": "Luna Bloom is a smart, elegant menstrual cycle tracker designed for women who want more than just calendar dots. Backed by AI, Luna Bloom helps you understand your body, track your cycle with ease, and get personalized insights to support your health, fertility, and well-being.",
+  "id": "LunaBloom",
+  "description": "Luna Bloom is a smart, elegant menstrual cycle tracker designed for women who want more than just calendar dots. Backed by AI, Luna Bloom helps you understand your body, track your cycle with ease, and get personalized insights to support your health, fertility, and well-being.\n\n🔍 Key Features:\nAccurate Period &amp; Ovulation Tracking\nTrack your cycle, flow intensity, symptoms, moods, and ovulation days with ease.\n\nAI-Powered Assistant 🤖\nGet smart, personalized suggestions based on your data — from managing PMS to optimizing conception windows.\n\nFertility Planning &amp; Pregnancy Support\nWhether you're trying to conceive or just staying informed, Luna Bloom offers helpful, gentle guidance.\n\nCustom Reminders &amp; Insights\nGet reminders for your next period, fertile days, or when to take supplements, all tailored to you.\n\nElegant &amp; Private\nEnjoy a calming user interface with full data privacy. Your health info stays yours — always.\n\n🌸 Who is Luna Bloom for?\nWhether you're managing your cycle, planning for a baby, or just want to feel more in tune with your body, Luna Bloom is your trusted companion.\n\nTake control of your cycle with grace and intelligence. Download Luna Bloom today!",
   "icons": [
     {
       "src": "/icons/icon-192x192.png",
@@ -23,9 +24,8 @@
   "start_url": "/",
   "display": "standalone",
   "scope": "/",
-  "background_color": "#000000",
-  "theme_color": "#000000",
-  "id": "LunaBloom",
+  "background_color": "#FFFFFF",
+  "theme_color": "#FFFFFF",
   "categories": [
     "fitness",
     "food",

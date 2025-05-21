@@ -85,13 +85,12 @@ export default function RootLayout({
         <title>LunaBloom</title>
         <meta name="description" content="Track your cycle, embrace your health." />
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#000000"/>
+        <meta name="theme-color" content="#FFFFFF"/>
         {/* iOS PWA Meta Tags */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="LunaBloom" />
-        {/* Add links to apple-touch-icon if you have them, e.g.: */}
-        {/* <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" /> */}
+        <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
         
         {/* Progressier PWA Script - ensure this is the one you intend to use */}
         <script defer src="https://progressier.app/bYyBLsJhbLj8JHGUd37S/script.js"></script>
