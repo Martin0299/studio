@@ -18,7 +18,7 @@ const inter = Inter({
 });
 
 // Define theme and accent types
-type Theme = 'light' | 'dark'; // Removed 'system'
+type Theme = 'light' | 'dark';
 type AccentColor = 'coral' | 'gold';
 
 export default function RootLayout({
@@ -57,42 +57,35 @@ export default function RootLayout({
 
     // Apply Theme - Default to 'light' if invalid or not set
     root.classList.remove('light', 'dark');
-    // Use stored value, default to 'light' if it's not 'dark'
     const currentTheme = (storedTheme === 'dark') ? 'dark' : 'light';
     root.classList.add(currentTheme);
-    // Ensure localStorage has a valid default if it was missing/invalid
     if (storedTheme !== 'light' && storedTheme !== 'dark') {
       localStorage.setItem('theme', 'light');
     }
 
     // Apply Accent Color - Default to 'coral' if invalid or not set
-    // Use stored value, default to 'coral' if it's not 'gold'
     const currentAccent = (storedAccent === 'gold') ? 'gold' : 'coral';
     root.setAttribute('data-accent', currentAccent);
-     // Ensure localStorage has a valid default if it was missing/invalid
     if (storedAccent !== 'coral' && storedAccent !== 'gold') {
        localStorage.setItem('accentColor', 'coral');
     }
-
-
-  }, []); // Run only once on mount
+  }, []);
 
 
   return (
-    // Add suppressHydrationWarning to html tag to avoid warning from theme/accent application
     <html lang="en" suppressHydrationWarning>
       <Head>
         <title>LunaBloom</title>
         <meta name="description" content="Track your cycle, embrace your health." />
         <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#FFFFFF"/>
+        <meta name="theme-color" content="#FFFFFF"/> {/* Updated to white */}
         {/* iOS PWA Meta Tags */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="LunaBloom" />
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
         
-        {/* Progressier PWA Script - ensure this is the one you intend to use */}
+        {/* Progressier PWA Script */}
         <script defer src="https://progressier.app/bYyBLsJhbLj8JHGUd37S/script.js"></script>
       </Head>
       <body className={cn(
@@ -100,17 +93,15 @@ export default function RootLayout({
           "font-sans antialiased flex flex-col min-h-screen bg-background"
         )}
       >
-         {/* Wrap the main content area and navbar with the provider */}
         <CycleDataProvider>
-            {/* Conditional Rendering based on lock state */}
             {isCheckingPin ? (
-                 <div className="flex items-center justify-center min-h-screen">Loading security state...</div> // Or a proper loader
+                 <div className="flex items-center justify-center min-h-screen">Loading security state...</div>
             ) : isLocked ? (
                  <PinLockOverlay onUnlock={handleUnlock} />
             ) : (
                  <>
                     <TopNavBar />
-                    <main className="flex-grow pt-16"> {/* Add padding-top to account for fixed nav bar */}
+                    <main className="flex-grow pt-16">
                         {children}
                     </main>
                     <Toaster />
