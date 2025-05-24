@@ -1,4 +1,3 @@
-
 // src/app/settings/page.tsx
 'use client';
 
@@ -22,16 +21,16 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Palette, Lock, Download, Trash2, Upload, Settings as SettingsIcon, Info as InfoIcon } from 'lucide-react';
+import { Palette, Lock, Download, Trash2, Upload, Settings as SettingsIcon, Info as InfoIcon, Bell } from 'lucide-react';
 import { useCycleData, type LogData } from '@/context/CycleDataContext';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import PinSetupDialog from '@/components/settings/PinSetupDialog';
-import { setPinStatus, getPinStatus, clearPinStatus, savePin, verifyPin, clearPin } from '@/lib/security';
+import { setPinStatus, getPinStatus, clearPin } from '@/lib/security'; // Removed unused savePin, verifyPin, clearPinStatus
 
 // Define theme type
 type Theme = 'light' | 'dark';
-type AccentColor = 'coral' | 'gold';
+type AccentColor = 'coral' | 'gold' | 'blue'; // Added 'blue'
 
 // Define helper components for Form structure (minimal versions)
 const Form = ({ children }: { children: React.ReactNode }) => <>{children}</>;
@@ -58,6 +57,7 @@ export default function SettingsPage() {
     // App Version
     const [appVersion, setAppVersion] = React.useState<string>('');
 
+
     // Valid keys for settings import (excluding cycleLog_ which is handled by prefix)
     const validImportKeys = React.useMemo(() => [
         'theme', 'accentColor', 'appLock', 'appPinStatus', 'appPinHash', 'healthTipsCache',
@@ -83,7 +83,7 @@ export default function SettingsPage() {
             root.classList.add('light');
         }
 
-        if (storedAccent && ['coral', 'gold'].includes(storedAccent)) {
+        if (storedAccent && ['coral', 'gold', 'blue'].includes(storedAccent)) { // Added 'blue'
             setAccentColor(storedAccent);
             root.setAttribute('data-accent', storedAccent);
         } else {
@@ -104,6 +104,7 @@ export default function SettingsPage() {
 
         // Load app version from environment variable (set at build time)
         setAppVersion(process.env.NEXT_PUBLIC_APP_VERSION || 'N/A');
+
     }, []);
 
     const handleThemeChange = (newTheme: string) => {
@@ -189,7 +190,7 @@ export default function SettingsPage() {
     const handleBackup = () => {
         try {
             const backupData: Record<string, any> = {};
-            const keysToBackup = [...validImportKeys];
+            const keysToBackup = [...validImportKeys]; // Create a copy
 
             for (let i = 0; i < localStorage.length; i++) {
                 const key = localStorage.key(i);
@@ -420,6 +421,10 @@ export default function SettingsPage() {
                                     <RadioGroupItem value="gold" id="accent-gold" />
                                     <Label htmlFor="accent-gold" style={{ color: 'hsl(var(--accent-gold))' }}>Gold</Label>
                                 </FormItem>
+                                <FormItem className="flex items-center space-x-2">
+                                    <RadioGroupItem value="blue" id="accent-blue" />
+                                    <Label htmlFor="accent-blue" style={{ color: 'hsl(var(--accent-blue))' }}>Blue</Label>
+                                </FormItem>
                             </RadioGroup>
                         </div>
                     </CardContent>
@@ -531,7 +536,7 @@ export default function SettingsPage() {
                         </AlertDialog>
                     </CardContent>
                 </Card>
-                <Card>
+                 <Card>
                     <CardHeader>
                         <CardTitle className="text-lg flex items-center"><InfoIcon className="mr-2 h-5 w-5 text-accent" />About</CardTitle>
                     </CardHeader>

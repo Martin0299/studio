@@ -21,11 +21,13 @@ body {
     --muted: 270 30% 95%; /* Light Lavender */
     --muted-foreground: 270 10% 45%; /* Darker lavender for muted text */
 
-    /* Accent Colors - Define both options */
+    /* Accent Colors - Define all options */
     --accent-coral: 16 100% 66%; /* Coral */
     --accent-gold: 45 100% 70%; /* Soft Gold */
+    --accent-blue: 210 100% 70%; /* A pleasant Blue */
     --accent-coral-foreground: 0 0% 100%; /* White for text on Coral */
     --accent-gold-foreground: 45 30% 15%; /* Dark Gold for text on Soft Gold */
+    --accent-blue-foreground: 210 30% 15%; /* Dark Blue for text on Blue */
 
     /* Default Accent (Coral) */
     --accent: var(--accent-coral);
@@ -33,14 +35,16 @@ body {
     --ring: var(--accent-coral); /* Default Ring (Coral) */
     --chart-1: var(--accent-coral); /* Default Chart 1 (Coral) */
     --chart-4: var(--accent-gold); /* Default Chart 4 (Gold) */
+    /* Let's assign chart-2 (teal) and chart-3 (lavender) and chart-5 (blue) for consistency */
+    --chart-2: 180 40% 60%; /* Soft Teal */
+    --chart-3: 270 40% 75%; /* Lavender */
+    --chart-5: var(--accent-blue); /* Default Chart 5 (Blue) */
+
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
     --border: 0 0% 89.8%;
     --input: 0 0% 89.8%;
-    --chart-2: 180 40% 60%; /* Soft Teal */
-    --chart-3: 270 40% 75%; /* Lavender */
-    --chart-5: 340 50% 70%; /* Lighter Dusty Rose */
     --radius: 0.5rem;
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
@@ -71,6 +75,15 @@ body {
     --sidebar-primary-foreground: var(--accent-gold-foreground);
     --sidebar-ring: var(--accent-gold);
   }
+  :root[data-accent="blue"] {
+    --accent: var(--accent-blue);
+    --accent-foreground: var(--accent-blue-foreground);
+    --ring: var(--accent-blue);
+    --chart-1: var(--accent-blue); /* Update chart-1 to reflect blue accent */
+    --sidebar-primary: var(--accent-blue);
+    --sidebar-primary-foreground: var(--accent-blue-foreground);
+    --sidebar-ring: var(--accent-blue);
+  }
 
 
   .dark {
@@ -90,8 +103,10 @@ body {
     /* Dark Mode Accent Colors */
     --accent-coral: 16 100% 70%; /* Brighter Coral for dark mode */
     --accent-gold: 45 100% 75%; /* Brighter Soft Gold for dark mode */
+    --accent-blue: 210 100% 75%; /* Brighter Blue for dark mode */
     --accent-coral-foreground: 240 10% 3.9%; /* Dark text on accent */
     --accent-gold-foreground: 45 25% 10%; /* Darker Gold text for dark mode */
+    --accent-blue-foreground: 210 25% 10%; /* Darker Blue text for dark mode */
 
     /* Default Dark Accent (Coral) */
     --accent: var(--accent-coral);
@@ -99,6 +114,7 @@ body {
     --ring: var(--accent-coral);
     --chart-1: var(--accent-coral);
     --chart-4: var(--accent-gold);
+    --chart-5: var(--accent-blue);
 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
@@ -106,7 +122,6 @@ body {
     --input: 240 5% 15%;
     --chart-2: 180 40% 70%; /* Brighter Soft Teal */
     --chart-3: 270 40% 80%; /* Brighter Lavender */
-    --chart-5: 340 50% 75%; /* Brighter Light Dusty Rose */
     --sidebar-background: 240 10% 5.9%;
     --sidebar-foreground: 0 0% 98%;
     --sidebar-primary: var(--accent-coral); /* Default Dark Sidebar Primary (Coral) */
@@ -135,6 +150,15 @@ body {
     --sidebar-primary: var(--accent-gold);
     --sidebar-primary-foreground: var(--accent-gold-foreground);
     --sidebar-ring: var(--accent-gold);
+  }
+  .dark[data-accent="blue"] {
+    --accent: var(--accent-blue);
+    --accent-foreground: var(--accent-blue-foreground);
+    --ring: var(--accent-blue);
+    --chart-1: var(--accent-blue); /* Update chart-1 to reflect blue accent */
+    --sidebar-primary: var(--accent-blue);
+    --sidebar-primary-foreground: var(--accent-blue-foreground);
+    --sidebar-ring: var(--accent-blue);
   }
 }
 
