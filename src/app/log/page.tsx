@@ -8,10 +8,11 @@ interface LogPageProps {
 
 export default function LogPage(props: LogPageProps) {
   let dateParam: string | undefined = undefined;
+  const currentSearchParams = props.searchParams; // Explicitly assign to a local constant
 
-  // Explicitly check if searchParams exists and then access the 'date' property using bracket notation.
-  if (props.searchParams && typeof props.searchParams['date'] === 'string') {
-    dateParam = props.searchParams['date'];
+  // Directly access the 'date' property if currentSearchParams and its 'date' property exist and are strings
+  if (currentSearchParams && typeof currentSearchParams['date'] === 'string') {
+    dateParam = currentSearchParams['date'];
   }
 
   let selectedDate = startOfDay(new Date()); // Default to today
