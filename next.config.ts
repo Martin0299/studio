@@ -44,7 +44,7 @@ const nextConfig: NextConfig = {
     ],
   },
   env: {
-    NEXT_PUBLIC_APP_VERSION: appVersion, // Changed to NEXT_PUBLIC_APP_VERSION
+    NEXT_PUBLIC_APP_VERSION: appVersion, // Ensures version is available on client
   },
 };
 

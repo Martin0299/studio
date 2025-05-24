@@ -60,7 +60,7 @@ export default function SettingsPage() {
     const [appVersion, setAppVersion] = React.useState<string>('');
 
 
-    // --- Effects for Appearance, Security ---
+    // --- Effects for Appearance, Security, and App Version ---
     React.useEffect(() => {
         const root = window.document.documentElement;
         const storedTheme = localStorage.getItem('theme') as Theme | null;
@@ -96,7 +96,7 @@ export default function SettingsPage() {
             setPinIsSet(false);
         }
 
-        // Load app version
+        // Load app version from environment variable (set at build time)
         setAppVersion(process.env.NEXT_PUBLIC_APP_VERSION || '0.0.0');
     }, []);
 
@@ -251,6 +251,12 @@ export default function SettingsPage() {
         document.getElementById('import-file-input')?.click();
     };
 
+    const validImportKeys = [
+        'theme', 'accentColor', 'appLock', 'appPinStatus', 'appPinHash', 'healthTipsCache',
+        'babyPlanningChecklist', 'babyPlanningLifestyleInputs',
+        'babyPlanningLifestylePlan', 'babyPlanningMealPlanInputs', 'babyPlanningMealPlan'
+    ];
+
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) {
@@ -275,11 +281,6 @@ export default function SettingsPage() {
                 let importedCount = 0;
                 let settingsImportedCount = 0;
                 
-                const validImportKeys = [
-                    'theme', 'accentColor', 'appLock', 'appPinStatus', 'appPinHash', 'healthTipsCache',
-                    'babyPlanningChecklist', 'babyPlanningLifestyleInputs',
-                    'babyPlanningLifestylePlan', 'babyPlanningMealPlanInputs', 'babyPlanningMealPlan'
-                ];
 
                 for (const key in importedData) {
                     if (Object.prototype.hasOwnProperty.call(importedData, key)) {
@@ -293,16 +294,16 @@ export default function SettingsPage() {
                                             localStorage.setItem(key, entry);
                                             importedCount++;
                                         } else {
-                                            console.warn(`Skipping invalid cycle log entry for key ${key}`);
+                                            console.warn(\`Skipping invalid cycle log entry for key \${key}\`);
                                         }
                                     } catch {
-                                        console.warn(`Skipping non-JSON cycle log entry for key ${key}`);
+                                        console.warn(\`Skipping non-JSON cycle log entry for key \${key}\`);
                                     }
                                 } else if (entry && typeof entry === 'object' && entry.date) {
                                     localStorage.setItem(key, JSON.stringify(entry));
                                     importedCount++;
                                 } else {
-                                    console.warn(`Skipping invalid cycle log entry format for key ${key}`);
+                                    console.warn(\`Skipping invalid cycle log entry format for key \${key}\`);
                                 }
                             } else { 
                                 const value = importedData[key];
@@ -310,21 +311,22 @@ export default function SettingsPage() {
                                      localStorage.setItem(key, typeof value === 'boolean' ? JSON.stringify(value) : value);
                                      settingsImportedCount++;
                                 } else {
-                                     console.warn(`Skipping setting for key ${key} due to invalid value type: ${typeof value}`);
+                                     console.warn(\`Skipping setting for key \${key} due to invalid value type: \${typeof value}\`);
                                 }
                             }
                         } else {
-                            console.warn(`Skipping unrecognized key during import: ${key}`);
+                            console.warn(\`Skipping unrecognized key during import: \${key}\`);
                         }
                     }
                 }
 
                 toast({
                     title: "Import Successful",
-                    description: `Imported ${importedCount} log entries and ${settingsImportedCount} settings. Please refresh the app if changes aren't reflected immediately.`,
+                    description: \`Imported \${importedCount} log entries and \${settingsImportedCount} settings. Please refresh the app if changes aren't reflected immediately.\`,
                 });
 
                 refreshData();
+                // Optionally, force a reload to ensure all components re-render with new localStorage values
                 window.location.reload();
 
             } catch (error: any) {
@@ -337,7 +339,7 @@ export default function SettingsPage() {
             } finally {
                 setIsImporting(false);
                 if (event.target) {
-                    event.target.value = '';
+                    event.target.value = ''; // Reset file input
                 }
             }
         };
@@ -514,7 +516,7 @@ export default function SettingsPage() {
                         </AlertDialog>
                     </CardContent>
                 </Card>
-
+                
                 <Card>
                     <CardHeader>
                         <CardTitle className="text-lg flex items-center"><InfoIcon className="mr-2 h-5 w-5 text-accent" />About</CardTitle>
@@ -528,4 +530,3 @@ export default function SettingsPage() {
         </Form>
     );
 }
-
