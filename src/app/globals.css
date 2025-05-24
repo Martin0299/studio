@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -25,9 +26,15 @@ body {
     --accent-coral: 16 100% 66%; /* Coral */
     --accent-gold: 45 100% 70%; /* Soft Gold */
     --accent-blue: 210 100% 70%; /* A pleasant Blue */
+    --accent-pink: 340 70% 75%; /* Pink */
+    --accent-red: 0 80% 65%;   /* Red */
+
     --accent-coral-foreground: 0 0% 100%; /* White for text on Coral */
     --accent-gold-foreground: 45 30% 15%; /* Dark Gold for text on Soft Gold */
     --accent-blue-foreground: 210 30% 15%; /* Dark Blue for text on Blue */
+    --accent-pink-foreground: 340 10% 15%; /* Dark Pink for text on Pink */
+    --accent-red-foreground: 0 0% 100%;   /* White for text on Red */
+
 
     /* Default Accent (Coral) */
     --accent: var(--accent-coral);
@@ -84,6 +91,24 @@ body {
     --sidebar-primary-foreground: var(--accent-blue-foreground);
     --sidebar-ring: var(--accent-blue);
   }
+  :root[data-accent="pink"] {
+    --accent: var(--accent-pink);
+    --accent-foreground: var(--accent-pink-foreground);
+    --ring: var(--accent-pink);
+    --chart-1: var(--accent-pink);
+    --sidebar-primary: var(--accent-pink);
+    --sidebar-primary-foreground: var(--accent-pink-foreground);
+    --sidebar-ring: var(--accent-pink);
+  }
+  :root[data-accent="red"] {
+    --accent: var(--accent-red);
+    --accent-foreground: var(--accent-red-foreground);
+    --ring: var(--accent-red);
+    --chart-1: var(--accent-red);
+    --sidebar-primary: var(--accent-red);
+    --sidebar-primary-foreground: var(--accent-red-foreground);
+    --sidebar-ring: var(--accent-red);
+  }
 
 
   .dark {
@@ -104,9 +129,15 @@ body {
     --accent-coral: 16 100% 70%; /* Brighter Coral for dark mode */
     --accent-gold: 45 100% 75%; /* Brighter Soft Gold for dark mode */
     --accent-blue: 210 100% 75%; /* Brighter Blue for dark mode */
+    --accent-pink: 340 70% 70%;  /* Brighter Pink for dark mode */
+    --accent-red: 0 80% 70%;    /* Brighter Red for dark mode */
+
     --accent-coral-foreground: 240 10% 3.9%; /* Dark text on accent */
     --accent-gold-foreground: 45 25% 10%; /* Darker Gold text for dark mode */
     --accent-blue-foreground: 210 25% 10%; /* Darker Blue text for dark mode */
+    --accent-pink-foreground: 0 0% 98%;    /* Light Pink text for dark mode */
+    --accent-red-foreground: 0 0% 98%;     /* Light Red text for dark mode */
+
 
     /* Default Dark Accent (Coral) */
     --accent: var(--accent-coral);
@@ -159,6 +190,24 @@ body {
     --sidebar-primary: var(--accent-blue);
     --sidebar-primary-foreground: var(--accent-blue-foreground);
     --sidebar-ring: var(--accent-blue);
+  }
+  .dark[data-accent="pink"] {
+    --accent: var(--accent-pink);
+    --accent-foreground: var(--accent-pink-foreground);
+    --ring: var(--accent-pink);
+    --chart-1: var(--accent-pink);
+    --sidebar-primary: var(--accent-pink);
+    --sidebar-primary-foreground: var(--accent-pink-foreground);
+    --sidebar-ring: var(--accent-pink);
+  }
+  .dark[data-accent="red"] {
+    --accent: var(--accent-red);
+    --accent-foreground: var(--accent-red-foreground);
+    --ring: var(--accent-red);
+    --chart-1: var(--accent-red);
+    --sidebar-primary: var(--accent-red);
+    --sidebar-primary-foreground: var(--accent-red-foreground);
+    --sidebar-ring: var(--accent-red);
   }
 }
 

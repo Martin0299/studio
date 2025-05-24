@@ -21,16 +21,16 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Palette, Lock, Download, Trash2, Upload, Settings as SettingsIcon, Info as InfoIcon, Bell } from 'lucide-react';
+import { Palette, Lock, Download, Trash2, Upload, Settings as SettingsIcon, Info as InfoIcon } from 'lucide-react';
 import { useCycleData, type LogData } from '@/context/CycleDataContext';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import PinSetupDialog from '@/components/settings/PinSetupDialog';
-import { setPinStatus, getPinStatus, clearPin } from '@/lib/security'; // Removed unused savePin, verifyPin, clearPinStatus
+import { setPinStatus, getPinStatus, clearPin } from '@/lib/security';
 
 // Define theme type
 type Theme = 'light' | 'dark';
-type AccentColor = 'coral' | 'gold' | 'blue'; // Added 'blue'
+type AccentColor = 'coral' | 'gold' | 'blue' | 'pink' | 'red'; // Added 'pink' and 'red'
 
 // Define helper components for Form structure (minimal versions)
 const Form = ({ children }: { children: React.ReactNode }) => <>{children}</>;
@@ -83,7 +83,7 @@ export default function SettingsPage() {
             root.classList.add('light');
         }
 
-        if (storedAccent && ['coral', 'gold', 'blue'].includes(storedAccent)) { // Added 'blue'
+        if (storedAccent && ['coral', 'gold', 'blue', 'pink', 'red'].includes(storedAccent)) {
             setAccentColor(storedAccent);
             root.setAttribute('data-accent', storedAccent);
         } else {
@@ -412,7 +412,7 @@ export default function SettingsPage() {
                         </div>
                         <div>
                             <Label className="mb-2 block">Accent Color</Label>
-                            <RadioGroup value={accentColor} onValueChange={handleAccentChange} className="flex space-x-4">
+                            <RadioGroup value={accentColor} onValueChange={handleAccentChange} className="grid grid-cols-3 gap-x-2 gap-y-3 sm:grid-cols-3">
                                 <FormItem className="flex items-center space-x-2">
                                     <RadioGroupItem value="coral" id="accent-coral" />
                                     <Label htmlFor="accent-coral" style={{ color: 'hsl(var(--accent-coral))' }}>Coral</Label>
@@ -424,6 +424,14 @@ export default function SettingsPage() {
                                 <FormItem className="flex items-center space-x-2">
                                     <RadioGroupItem value="blue" id="accent-blue" />
                                     <Label htmlFor="accent-blue" style={{ color: 'hsl(var(--accent-blue))' }}>Blue</Label>
+                                </FormItem>
+                                <FormItem className="flex items-center space-x-2">
+                                    <RadioGroupItem value="pink" id="accent-pink" />
+                                    <Label htmlFor="accent-pink" style={{ color: 'hsl(var(--accent-pink))' }}>Pink</Label>
+                                </FormItem>
+                                <FormItem className="flex items-center space-x-2">
+                                    <RadioGroupItem value="red" id="accent-red" />
+                                    <Label htmlFor="accent-red" style={{ color: 'hsl(var(--accent-red))' }}>Red</Label>
                                 </FormItem>
                             </RadioGroup>
                         </div>
