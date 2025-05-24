@@ -76,7 +76,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <Head>
         <title>LunaBloom</title>
-        <meta name="description" content="Track your cycle, embrace your health." />
+        <meta name="description" content="📱 Luna Bloom – Creative Inspiration for the Modern Woman" />
         <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#FFFFFF"/> {/* Updated to white */}
         {/* iOS PWA Meta Tags */}
@@ -85,8 +85,8 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="LunaBloom" />
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
         
-        {/* Progressier PWA Script */}
-        <script defer src="https://progressier.app/bYyBLsJhbLj8JHGUd37S/script.js"></script>
+        {/* Progressier PWA Script - Updated */}
+        <script defer src="https://progressier.app/OegYkpgaXT4nbstj5zfk/script.js"></script>
       </Head>
       <body className={cn(
           inter.variable,
