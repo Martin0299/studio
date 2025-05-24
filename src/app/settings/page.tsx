@@ -1,6 +1,6 @@
 
 // src/app/settings/page.tsx
-'use client'; // Required for interactions like toggles and buttons
+'use client';
 
 import * as React from 'react';
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -23,11 +23,11 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Palette, Lock, Download, Trash2, Upload, Settings as SettingsIcon, Info as InfoIcon } from 'lucide-react';
-import { useCycleData, LogData } from '@/context/CycleDataContext';
+import { useCycleData, type LogData } from '@/context/CycleDataContext';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import PinSetupDialog from '@/components/settings/PinSetupDialog';
-import { setPinStatus, getPinStatus, clearPinStatus } from '@/lib/security';
+import { setPinStatus, getPinStatus, clearPinStatus, savePin, verifyPin, clearPin } from '@/lib/security';
 
 // Define theme type
 type Theme = 'light' | 'dark';
@@ -58,6 +58,14 @@ export default function SettingsPage() {
 
     // App Version
     const [appVersion, setAppVersion] = React.useState<string>('');
+
+    // Valid keys for settings import (excluding cycleLog_ which is handled by prefix)
+    const validImportKeys = [
+        'theme', 'accentColor', 'appLock', 'appPinStatus', 'appPinHash', 'healthTipsCache',
+        'babyPlanningChecklist', 'babyPlanningLifestyleInputs',
+        'babyPlanningLifestylePlan', 'babyPlanningMealPlanInputs', 'babyPlanningMealPlan'
+        // Removed: 'periodReminder', 'fertileReminder', 'pillReminder', 'pillReminderTime' as they were removed
+    ];
 
 
     // --- Effects for Appearance, Security, and App Version ---
@@ -92,12 +100,12 @@ export default function SettingsPage() {
         setPinIsSet(currentPinStatus);
 
         if (!lockEnabled && currentPinStatus) {
-            clearPinStatus();
+            clearPin(); // Clears hash and status
             setPinIsSet(false);
         }
 
         // Load app version from environment variable (set at build time)
-        setAppVersion(process.env.NEXT_PUBLIC_APP_VERSION || '0.0.0');
+        setAppVersion(process.env.NEXT_PUBLIC_APP_VERSION || 'N/A');
     }, []);
 
     const handleThemeChange = (newTheme: string) => {
@@ -107,7 +115,7 @@ export default function SettingsPage() {
         const root = window.document.documentElement;
         root.classList.remove('light', 'dark');
         root.classList.add(validTheme);
-        toast({ title: "Theme Updated", description: `Theme set to ${validTheme}.` });
+        toast({ title: "Theme Updated", description: "Theme set to " + validTheme + "." });
     };
 
     const handleAccentChange = (newAccent: string) => {
@@ -116,7 +124,7 @@ export default function SettingsPage() {
         localStorage.setItem('accentColor', validAccent);
         const root = window.document.documentElement;
         root.setAttribute('data-accent', validAccent);
-        toast({ title: "Accent Color Updated", description: `Accent set to ${validAccent}.` });
+        toast({ title: "Accent Color Updated", description: "Accent set to " + validAccent + "." });
     };
 
     const handleAppLockChange = (checked: boolean) => {
@@ -124,7 +132,7 @@ export default function SettingsPage() {
         localStorage.setItem('appLock', JSON.stringify(checked));
         toast({
             title: "Security Setting Updated",
-            description: `App Lock ${checked ? 'enabled' : 'disabled'}.`,
+            description: "App Lock " + (checked ? 'enabled' : 'disabled') + ".",
             variant: "default"
         });
         if (checked) {
@@ -132,7 +140,7 @@ export default function SettingsPage() {
                 setShowPinDialog(true);
             }
         } else {
-            clearPinStatus();
+            clearPin(); // Clears hash and status
             setPinIsSet(false);
         }
     };
@@ -144,14 +152,19 @@ export default function SettingsPage() {
     const handlePinSet = (success: boolean) => {
         setShowPinDialog(false);
         if (success) {
-            setPinStatus(true);
+            setPinStatus(true); // Redundant if savePin does it, but good for UI consistency
             setPinIsSet(true);
-            if (!appLock) {
+            if (!appLock) { // If PIN was set/changed but lock wasn't on, turn it on
                 setAppLock(true);
                 localStorage.setItem('appLock', JSON.stringify(true));
+                 toast({
+                    title: "App Lock Enabled",
+                    description: "App Lock automatically enabled after PIN setup.",
+                 });
             }
         } else {
-            if (appLock && !getPinStatus()) {
+            // If PIN setup was cancelled and app lock was enabled (awaiting PIN), disable app lock
+            if (appLock && !getPinStatus()) { // getPinStatus checks actual hash presence
                 setAppLock(false);
                 localStorage.setItem('appLock', JSON.stringify(false));
                 toast({
@@ -179,18 +192,15 @@ export default function SettingsPage() {
     const handleBackup = () => {
         try {
             const backupData: Record<string, any> = {};
-            const keysToBackup = [
-                'theme', 'accentColor', 'appLock', 'appPinStatus', 'appPinHash', 'healthTipsCache',
-                'babyPlanningChecklist', 'babyPlanningLifestyleInputs',
-                'babyPlanningLifestylePlan', 'babyPlanningMealPlanInputs', 'babyPlanningMealPlan'
-            ];
+            // Combine static keys with dynamic cycleLog keys
+            const keysToBackup = [...validImportKeys]; // validImportKeys already includes relevant settings
 
             for (let i = 0; i < localStorage.length; i++) {
                 const key = localStorage.key(i);
                 if (key && (key.startsWith('cycleLog_') || keysToBackup.includes(key))) {
                     const value = localStorage.getItem(key);
                     if (value !== null) {
-                        backupData[key] = value;
+                        backupData[key] = value; // Store as string as it is in localStorage
                     }
                 }
             }
@@ -202,7 +212,7 @@ export default function SettingsPage() {
 
             const jsonString = JSON.stringify(backupData, null, 2);
             const timestamp = format(new Date(), 'yyyyMMdd_HHmmss');
-            downloadFile(`lunabloom_backup_${timestamp}.json`, jsonString, 'application/json');
+            downloadFile("lunabloom_backup_" + timestamp + ".json", jsonString, 'application/json');
             toast({ title: "Backup Successful", description: "Your data backup has been downloaded." });
         } catch (error) {
             console.error("Backup failed:", error);
@@ -227,18 +237,18 @@ export default function SettingsPage() {
                     log.date,
                     log.periodFlow ?? '',
                     log.isPeriodEnd ? 'true' : 'false',
-                    `"${(log.symptoms ?? []).join('; ')}"`,
+                    '"' + (log.symptoms ?? []).join('; ') + '"',
                     log.mood ?? '',
                     log.sexualActivityCount ?? 0,
                     log.protectionUsed !== undefined ? (log.protectionUsed ? 'true' : 'false') : '',
                     log.orgasm !== undefined ? (log.orgasm ? 'true' : 'false') : '',
                     log.tookPill !== undefined ? (log.tookPill ? 'true' : 'false') : '',
-                    `"${(log.notes ?? '').replace(/"/g, '""')}"`,
+                    '"' + (log.notes ?? '').replace(/"/g, '""') + '"',
                 ].join(','))
             ];
             const csvString = csvRows.join('\n');
             const timestamp = format(new Date(), 'yyyyMMdd_HHmmss');
-            downloadFile(`lunabloom_export_${timestamp}.csv`, csvString, 'text/csv');
+            downloadFile("lunabloom_export_" + timestamp + ".csv", csvString, 'text/csv');
             toast({ title: "Export Successful", description: "Your cycle log data has been downloaded as CSV." });
 
         } catch (error) {
@@ -251,11 +261,6 @@ export default function SettingsPage() {
         document.getElementById('import-file-input')?.click();
     };
 
-    const validImportKeys = [
-        'theme', 'accentColor', 'appLock', 'appPinStatus', 'appPinHash', 'healthTipsCache',
-        'babyPlanningChecklist', 'babyPlanningLifestyleInputs',
-        'babyPlanningLifestylePlan', 'babyPlanningMealPlanInputs', 'babyPlanningMealPlan'
-    ];
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -280,53 +285,58 @@ export default function SettingsPage() {
 
                 let importedCount = 0;
                 let settingsImportedCount = 0;
-                
+
 
                 for (const key in importedData) {
                     if (Object.prototype.hasOwnProperty.call(importedData, key)) {
                          if (key.startsWith('cycleLog_') || validImportKeys.includes(key)) {
                             if (key.startsWith('cycleLog_')) {
-                                const entry = importedData[key];
-                                if (typeof entry === 'string') {
+                                const entryValue = importedData[key];
+                                // Cycle log entries are stored as JSON strings in localStorage
+                                if (typeof entryValue === 'string') {
                                     try {
-                                        const parsedEntry = JSON.parse(entry);
+                                        const parsedEntry = JSON.parse(entryValue);
                                         if (parsedEntry && typeof parsedEntry === 'object' && parsedEntry.date) {
-                                            localStorage.setItem(key, entry);
+                                            localStorage.setItem(key, entryValue); // Store the original JSON string
                                             importedCount++;
                                         } else {
-                                            console.warn(\`Skipping invalid cycle log entry for key \${key}\`);
+                                            console.warn('Skipping invalid cycle log entry for key ' + key);
                                         }
                                     } catch {
-                                        console.warn(\`Skipping non-JSON cycle log entry for key \${key}\`);
+                                        console.warn('Skipping non-JSON cycle log entry for key ' + key);
                                     }
-                                } else if (entry && typeof entry === 'object' && entry.date) {
-                                    localStorage.setItem(key, JSON.stringify(entry));
-                                    importedCount++;
                                 } else {
-                                    console.warn(\`Skipping invalid cycle log entry format for key \${key}\`);
+                                     // Handle case where backup might have already parsed it (less ideal but for robustness)
+                                     if (entryValue && typeof entryValue === 'object' && entryValue.date) {
+                                        localStorage.setItem(key, JSON.stringify(entryValue));
+                                        importedCount++;
+                                     } else {
+                                        console.warn('Skipping invalid cycle log entry format for key ' + key);
+                                     }
                                 }
-                            } else { 
+                            } else {
+                                // For settings, they are also stored as strings (even booleans are stringified)
                                 const value = importedData[key];
-                                if (typeof value === 'string' || typeof value === 'boolean') {
-                                     localStorage.setItem(key, typeof value === 'boolean' ? JSON.stringify(value) : value);
+                                if (typeof value === 'string') { // All settings from backup should be strings
+                                     localStorage.setItem(key, value);
                                      settingsImportedCount++;
                                 } else {
-                                     console.warn(\`Skipping setting for key \${key} due to invalid value type: \${typeof value}\`);
+                                     console.warn('Skipping setting for key ' + key + ' due to invalid value type (expected string): ' + (typeof value));
                                 }
                             }
                         } else {
-                            console.warn(\`Skipping unrecognized key during import: \${key}\`);
+                            console.warn('Skipping unrecognized key during import: ' + key);
                         }
                     }
                 }
 
                 toast({
                     title: "Import Successful",
-                    description: \`Imported \${importedCount} log entries and \${settingsImportedCount} settings. Please refresh the app if changes aren't reflected immediately.\`,
+                    description: "Imported " + importedCount + " log entries and " + settingsImportedCount + " settings. Please refresh the app if changes aren't reflected immediately.",
                 });
 
-                refreshData();
-                // Optionally, force a reload to ensure all components re-render with new localStorage values
+                refreshData(); // This reloads data into CycleDataContext
+                // Force a full page reload to re-apply all settings from localStorage
                 window.location.reload();
 
             } catch (error: any) {
@@ -364,6 +374,22 @@ export default function SettingsPage() {
         deleteAllData();
         toast({ variant: "destructive", title: "Data Deleted", description: "All your cycle data has been permanently removed." });
         setDeleteConfirmInput('');
+         // Also clear security settings and appearance settings for a full reset
+        clearPin(); // Clears hash and status
+        setPinIsSet(false);
+        setAppLock(false);
+        localStorage.removeItem('appLock');
+        localStorage.removeItem('theme');
+        localStorage.removeItem('accentColor');
+        localStorage.removeItem('healthTipsCache');
+        localStorage.removeItem('babyPlanningChecklist');
+        localStorage.removeItem('babyPlanningLifestyleInputs');
+        localStorage.removeItem('babyPlanningLifestylePlan');
+        localStorage.removeItem('babyPlanningMealPlanInputs');
+        localStorage.removeItem('babyPlanningMealPlan');
+
+        // Optionally, reload to apply immediate UI changes for theme/accent etc.
+        window.location.reload();
     };
 
     const isDeleteDisabled = deleteConfirmInput !== 'DELETE';
@@ -432,7 +458,7 @@ export default function SettingsPage() {
                         <Button
                             variant="outline"
                             className="w-full"
-                            disabled={!appLock}
+                            disabled={!appLock && !pinIsSet} // Enable if lock is ON, OR if lock is OFF but a PIN is set (to change/remove it)
                             onClick={handleOpenPinDialog}
                         >
                             {pinIsSet ? 'Change PIN' : 'Set PIN'}
@@ -485,14 +511,14 @@ export default function SettingsPage() {
                         <AlertDialog onOpenChange={(open) => !open && setDeleteConfirmInput('')}>
                             <AlertDialogTrigger asChild>
                                 <Button variant="destructive" className="w-full flex items-center justify-center gap-2">
-                                    <Trash2 className="h-4 w-4" /> Delete All Cycle Data
+                                    <Trash2 className="h-4 w-4" /> Delete All App Data
                                 </Button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                                 <AlertDialogHeader>
                                     <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                                     <AlertDialogDescription>
-                                        This action cannot be undone. This will permanently delete all your cycle tracking data stored in this browser. Type <strong className="text-destructive">DELETE</strong> below to confirm.
+                                        This action cannot be undone. This will permanently delete ALL your app data (logs, settings, PIN) stored in this browser. Type <strong className="text-destructive">DELETE</strong> below to confirm.
                                     </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <Input
@@ -516,7 +542,7 @@ export default function SettingsPage() {
                         </AlertDialog>
                     </CardContent>
                 </Card>
-                
+
                 <Card>
                     <CardHeader>
                         <CardTitle className="text-lg flex items-center"><InfoIcon className="mr-2 h-5 w-5 text-accent" />About</CardTitle>
