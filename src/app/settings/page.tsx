@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Palette, Lock, Download, Trash2, Upload, Settings as SettingsIcon } from 'lucide-react';
+import { Palette, Lock, Download, Trash2, Upload, Settings as SettingsIcon, Info as InfoIcon } from 'lucide-react';
 import { useCycleData, LogData } from '@/context/CycleDataContext';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -55,6 +55,9 @@ export default function SettingsPage() {
     const [appLock, setAppLock] = React.useState<boolean>(false);
     const [pinIsSet, setPinIsSet] = React.useState<boolean>(false);
     const [showPinDialog, setShowPinDialog] = React.useState<boolean>(false);
+
+    // App Version
+    const [appVersion, setAppVersion] = React.useState<string>('');
 
 
     // --- Effects for Appearance, Security ---
@@ -92,6 +95,9 @@ export default function SettingsPage() {
             clearPinStatus();
             setPinIsSet(false);
         }
+
+        // Load app version
+        setAppVersion(process.env.NEXT_PUBLIC_APP_VERSION || '0.0.0');
     }, []);
 
     const handleThemeChange = (newTheme: string) => {
@@ -508,6 +514,16 @@ export default function SettingsPage() {
                         </AlertDialog>
                     </CardContent>
                 </Card>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-lg flex items-center"><InfoIcon className="mr-2 h-5 w-5 text-accent" />About</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-sm text-muted-foreground">LunaBloom App Version: {appVersion}</p>
+                    </CardContent>
+                </Card>
+
             </div>
         </Form>
     );
