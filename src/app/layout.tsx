@@ -76,14 +76,24 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <Head>
         <title>LunaBloom</title>
-        <meta name="description" content="📱 Luna Bloom – Creative Inspiration for the Modern Woman" />
-        <link rel="manifest" href="/manifest.json" /> {/* Local manifest */}
+        <meta name="description" content="LunaBloom: Smart cycle tracking, insights, and wellness." />
+        
+        {/* Local PWA Manifest */}
+        <link rel="manifest" href="/manifest.json" />
         <meta name="theme-color" content="#FFFFFF"/>
+
+        {/* Progressier PWA Integration */}
+        <link rel="manifest" href="https://progressier.app/loN7yQ2HZQgC0vvDLrFc/progressier.json"/>
+        <script defer src="https://progressier.app/loN7yQ2HZQgC0vvDLrFc/script.js"></script>
+
         {/* iOS PWA Meta Tags */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="default" /> {/* Changed to default for better visibility with white theme */}
         <meta name="apple-mobile-web-app-title" content="LunaBloom" />
-        <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
+        <link rel="apple-touch-icon" href="/icons/icon-192x192.png" /> {/* Ensure this icon exists */}
+
+        {/* Other common meta tags */}
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 
       </Head>
       <body className={cn(

@@ -13,12 +13,12 @@ import {
     DialogFooter,
     DialogClose,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Droplet, CalendarDays, HeartPulse, Percent, Activity, LineChart, BarChart as BarChartIcon, Info, TrendingUp, TrendingDown, Minus as MinusIcon, BrainCircuit, Lightbulb, Loader2, Baby, HeartHandshake, Eye, ShieldCheck, Ban, SmilePlus, Frown, Edit3 } from 'lucide-react'; // Added Edit3 for "Edit Log"
+import { Droplet, CalendarDays, HeartPulse, Percent, Activity, LineChart, BarChart as BarChartIcon, Info, TrendingUp, TrendingDown, Minus as MinusIcon, BrainCircuit, Lightbulb, Loader2, Baby, HeartHandshake, Eye, ShieldCheck, Ban, SmilePlus, Frown, Edit3, PillIcon } from 'lucide-react'; // Added PillIcon
 import { useCycleData, LogData } from '@/context/CycleDataContext';
 import { differenceInDays, format, parseISO, addDays, subDays, isWithinInterval, isValid, isAfter, isEqual, startOfDay, isBefore } from 'date-fns';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, LabelList } from 'recharts';
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
@@ -59,9 +59,9 @@ interface RawPeriodLengthEntry {
     length: number;
 }
 
-interface RawCycleLengthEntry { // New interface for raw cycle lengths
+interface RawCycleLengthEntry {
     startDate: Date;
-    endDate: Date | null; // endDate can be null if it's the current/last cycle
+    endDate: Date | null;
     length: number;
 }
 
@@ -71,100 +71,120 @@ const getCyclePhase = (
     date: Date,
     periodStartDates: Date[],
     avgCycleLength: number | null,
-    avgPeriodLength: number | null,
-    logData: Record<string, LogData> // Added logData as a parameter
+    avgPeriodLength: number | null, // Can be null
+    logData: Record<string, LogData>
 ): CyclePhase => {
-    if (!avgCycleLength || !avgPeriodLength || periodStartDates.length === 0 || !date || !isValid(date)) {
-        return 'Unknown';
+    const dateString = format(date, 'yyyy-MM-dd');
+    const currentLog = logData[dateString];
+
+    // Most definitive: if the day is logged as a period day
+    if (currentLog?.periodFlow && currentLog.periodFlow !== 'none') {
+        return 'Period';
+    }
+
+    // If not a logged period day, proceed with cycle calculations for other phases
+    if (!avgCycleLength || periodStartDates.length === 0 || !date || !isValid(date)) {
+        return 'Unknown'; // Not enough info for other phases
     }
 
     let cycleStartDate: Date | null = null;
     let nextCycleStartDate: Date | null = null;
 
+    // Find the cycle this date falls into
     for (let i = periodStartDates.length - 1; i >= 0; i--) {
         const currentStart = periodStartDates[i];
         if (!isValid(currentStart)) continue;
-
         const estimatedNextStart = addDays(currentStart, avgCycleLength);
-
-         if ((isAfter(date, currentStart) || isEqual(date, currentStart)) && isBefore(date, estimatedNextStart)) {
+        if ((isAfter(date, currentStart) || isEqual(date, currentStart)) && isBefore(date, estimatedNextStart)) {
             cycleStartDate = currentStart;
             nextCycleStartDate = estimatedNextStart;
-            const periodEndDate = addDays(cycleStartDate, avgPeriodLength - 1);
-            if (isWithinInterval(date, { start: cycleStartDate, end: periodEndDate })) {
-                return 'Period';
-            }
             break;
         }
-          else if (i === periodStartDates.length - 1 && isEqual(date, currentStart)) {
-              cycleStartDate = currentStart;
-              nextCycleStartDate = estimatedNextStart;
-               const periodEndDate = addDays(cycleStartDate, avgPeriodLength - 1);
-                if (isWithinInterval(date, { start: cycleStartDate, end: periodEndDate })) {
-                    return 'Period';
-                }
-              break;
-          }
+        // Handle the very last cycle if 'date' is exactly its start
+        if (i === periodStartDates.length -1 && isEqual(date, currentStart)){
+            cycleStartDate = currentStart;
+            nextCycleStartDate = estimatedNextStart;
+            break;
+        }
     }
 
-     if (!cycleStartDate || !nextCycleStartDate) {
-         // If no cycle start date is found for the given date, it's likely outside known cycles
-         // Check if the date falls within any explicitly logged period range, even if cycle calculation is off
-         for (const logDateString in logData) {
-            const logEntry = logData[logDateString];
-            if(logEntry.periodFlow && logEntry.periodFlow !== 'none') {
-                const logEntryDate = parseISO(logEntry.date!);
-                if(isEqual(date, logEntryDate)) return 'Period'; // It's a logged period day
+    if (!cycleStartDate || !nextCycleStartDate) {
+        // Fallback for dates that might be outside fully calculated cycles but still have logs
+        // This was primarily for period days, already handled above.
+        // For other phases, if we can't determine a cycle, it's Unknown.
+        return 'Unknown';
+    }
 
-                // Check if this is part of a continuous period block
-                if(avgPeriodLength){
-                    // Find the start of this block
-                    let currentPeriodBlockStart = logEntryDate;
-                    for(let d = 1; d < avgPeriodLength; d++){
-                        const prevDayCheck = subDays(logEntryDate, d);
-                        const prevDayLog = logData[format(prevDayCheck, 'yyyy-MM-dd')];
-                        if(prevDayLog?.periodFlow && prevDayLog.periodFlow !== 'none'){
-                            currentPeriodBlockStart = prevDayCheck;
-                        } else {
-                            break;
-                        }
-                    }
-                    const periodBlockEnd = addDays(currentPeriodBlockStart, avgPeriodLength -1);
-                     if(isWithinInterval(date, {start: currentPeriodBlockStart, end: periodBlockEnd})) return 'Period';
+    // Determine the end of the period for phase boundary calculations
+    let actualPeriodEndDateForPhaseCalc = cycleStartDate;
+    if (avgPeriodLength) { // Use average if available and reliable
+        actualPeriodEndDateForPhaseCalc = addDays(cycleStartDate, avgPeriodLength - 1);
+    } else { // Otherwise, try to find the actual end from logs for *this* specific cycle
+        let foundEnd = false;
+        for (let i = 0; i < 15; i++) { // Check up to 15 days for this period
+            const d = addDays(cycleStartDate, i);
+            const dStr = format(d, 'yyyy-MM-dd');
+            const logEntry = logData[dStr];
+            if (logEntry) {
+                if (logEntry.periodFlow && logEntry.periodFlow !== 'none') {
+                    actualPeriodEndDateForPhaseCalc = d; // Update if flow continues
                 }
+                if (logEntry.isPeriodEnd) {
+                    actualPeriodEndDateForPhaseCalc = d;
+                    foundEnd = true;
+                    break;
+                }
+                // If no flow on day 'd' (and it's after cycleStartDate), and we haven't found an isPeriodEnd yet,
+                // assume period ended on the previous day that had flow.
+                if (i > 0 && (!logEntry.periodFlow || logEntry.periodFlow === 'none') && !foundEnd) {
+                     // Check if the previous day actually had flow before setting it as the end
+                    const prevDayStr = format(subDays(d,1), 'yyyy-MM-dd');
+                    if (logData[prevDayStr]?.periodFlow && logData[prevDayStr]?.periodFlow !== 'none') {
+                        actualPeriodEndDateForPhaseCalc = subDays(d,1);
+                    }
+                    // If previous day also had no flow, actualPeriodEndDateForPhaseCalc remains the last known flow day or cycleStartDate
+                    break;
+                }
+            } else if (i > 0 && !foundEnd) { // No log data for day 'd', assume period ended on previously recorded flow day
+                 // Similar check for previous day having flow
+                const prevDayStr = format(subDays(d,1), 'yyyy-MM-dd');
+                if (logData[prevDayStr]?.periodFlow && logData[prevDayStr]?.periodFlow !== 'none') {
+                     actualPeriodEndDateForPhaseCalc = subDays(d,1);
+                }
+                break;
             }
-         }
-         return 'Unknown';
-     }
+        }
+    }
 
-     const estimatedPeriodEndDate = addDays(cycleStartDate, avgPeriodLength - 1);
+
     const ovulationDay = subDays(nextCycleStartDate, 14);
     const fertileWindowStart = subDays(ovulationDay, 5);
-    const fertileWindowEnd = addDays(ovulationDay, 1);
+    const fertileWindowEnd = addDays(ovulationDay, 1); // Typically includes ovulation day and one day after
+
+    // Check if date is in fertile window (includes ovulation day)
     if (isWithinInterval(date, { start: fertileWindowStart, end: fertileWindowEnd })) {
         return 'Fertile Window';
     }
 
-    const follicularStart = addDays(estimatedPeriodEndDate, 1);
+    const follicularStart = addDays(actualPeriodEndDateForPhaseCalc, 1);
     const follicularEnd = subDays(fertileWindowStart, 1);
 
-     if (!isBefore(follicularEnd, follicularStart)) {
-         if (isWithinInterval(date, { start: follicularStart, end: follicularEnd })) {
-             return 'Follicular';
-         }
-     } else if (isEqual(date, follicularStart)) { // Handle case where follicular phase is just one day
-         return 'Follicular';
-     }
+    if (!isBefore(follicularEnd, follicularStart)) { // Check if follicular phase has valid length
+        if (isWithinInterval(date, { start: follicularStart, end: follicularEnd })) {
+            return 'Follicular';
+        }
+    } else if (isEqual(date, follicularStart)) { // Handle case where follicular phase might be just one day or start/end are same
+        return 'Follicular';
+    }
 
-
-    const lutealStart = addDays(fertileWindowEnd, 1);
+    const lutealStart = addDays(fertileWindowEnd, 1); // Day after fertile window ends
     const lutealEnd = subDays(nextCycleStartDate, 1);
 
-     if (!isBefore(lutealEnd, lutealStart)) {
+    if (!isBefore(lutealEnd, lutealStart)) { // Check if luteal phase has valid length
         if (isWithinInterval(date, { start: lutealStart, end: lutealEnd })) {
             return 'Luteal';
         }
-    } else if (isEqual(date, lutealStart)) { // Handle case where luteal phase is just one day
+    } else if (isEqual(date, lutealStart)) { // Handle case where luteal phase might be just one day
         return 'Luteal';
     }
 
@@ -202,7 +222,7 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
 } => {
     const periodStartDates: Date[] = [];
     const periodLengthsData: { date: Date; length: number; endDate: Date }[] = [];
-    const cycleLengthsData: { startDate: Date; endDate: Date | null; length: number }[] = []; // Updated for rawCycleLengths
+    const cycleLengthsData: { startDate: Date; endDate: Date | null; length: number }[] = [];
 
     let totalSexualActivityDays = 0;
     let protectedActivityDays = 0;
@@ -261,16 +281,11 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
                 }
             }
         } else {
-            // For the last (or only) cycle, endDate is null as next start is unknown
-            // Calculate length based on average if available, or just mark as ongoing
             const lastCycleLog = logData[format(currentStartDate, 'yyyy-MM-dd')];
-            if(lastCycleLog) { // Check if there is a log for this start date
+            if(lastCycleLog) {
                 const avgCycle = cycleLengthsData.filter(c => c.endDate !== null).length > 0 ? Math.round(cycleLengthsData.filter(c => c.endDate !== null).map(d => d.length).reduce((a,b) => a+b,0) / cycleLengthsData.filter(c => c.endDate !== null).length) : null;
                 if (avgCycle) {
-                    cycleLengthsData.push({ startDate: currentStartDate, endDate: null, length: avgCycle}); 
-                } else if (logData[format(addDays(currentStartDate, 1), 'yyyy-MM-dd')]) {
-                     // If there's data for the next day, it's at least 1 day long, but we can't determine full length yet
-                     // console.log("Ongoing cycle, length indeterminate without avg or next start.")
+                    cycleLengthsData.push({ startDate: currentStartDate, endDate: null, length: avgCycle});
                 }
             }
         }
@@ -286,10 +301,9 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
         if (!isValid(startDate)) return;
         let endDate: Date | null = null;
         let lastFlowDate = startDate;
-        const searchLimit = addDays(startDate, 20); // Look for end within 20 days
+        const searchLimit = addDays(startDate, 20);
         let foundExplicitEnd = false;
 
-        // Iterate through sorted log entries to find the end of this period
         for (let d = 0; d < sortedDates.length; d++) {
             const currentDateString = sortedDates[d];
             const currentEntry = logData[currentDateString];
@@ -298,9 +312,9 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
             const currentDate = startOfDay(parseISO(currentEntry.date));
             if (!isValid(currentDate)) continue;
 
-            if (isBefore(currentDate, startDate)) continue; // Only look from start date onwards
-            if (isEqual(currentDate, startDate)) { // Handle case where start date is also end date
-                if (currentEntry.isPeriodEnd) { 
+            if (isBefore(currentDate, startDate)) continue;
+            if (isEqual(currentDate, startDate)) {
+                if (currentEntry.isPeriodEnd) {
                     endDate = currentDate;
                     foundExplicitEnd = true;
                     break;
@@ -308,11 +322,10 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
             }
 
 
-            if (isAfter(currentDate, searchLimit)) break; // Stop searching if too far
+            if (isAfter(currentDate, searchLimit)) break;
 
-            // Check if we found the start of the *next* period before finding the end of the current one
             const isNextPeriodStart = periodStartDates.some(nextStart => isEqual(currentDate, nextStart) && !isEqual(nextStart, startDate));
-            if (isNextPeriodStart) break; // If we hit the next period's start, stop looking for the current one's end
+            if (isNextPeriodStart) break;
 
             if (currentEntry.isPeriodEnd) {
                 endDate = currentDate;
@@ -321,27 +334,23 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
             }
 
             if (currentEntry.periodFlow && currentEntry.periodFlow !== 'none') {
-                 if (isAfter(currentDate, lastFlowDate) && !isAfter(currentDate, addDays(startDate,15))) { // Only update lastFlowDate if it's a flow day and within a reasonable range
+                 if (isAfter(currentDate, lastFlowDate) && !isAfter(currentDate, addDays(startDate,15))) {
                     lastFlowDate = currentDate;
                  }
             }
         }
 
-        // Determine the final end date for the period
-        // If an explicit 'isPeriodEnd' was found, use that.
-        // Otherwise, use the last date a flow was logged for this period.
-        // If no flow was logged after the start date (and start date wasn't marked as end), period is 1 day.
         const finalEndDate = foundExplicitEnd ? endDate : (isAfter(lastFlowDate, startDate) ? lastFlowDate : startDate);
 
-        if (finalEndDate && isValid(finalEndDate)) {
+        if (finalEndDate && isValid(finalEndDate) && !isBefore(finalEndDate,startDate) ) {
              const length = differenceInDays(finalEndDate, startDate) + 1;
-             if (length > 0 && length < 20) { // Basic validation for period length (1-19 days)
+             if (length > 0 && length < 20) {
                  periodLengthsData.push({ date: startDate, length, endDate: finalEndDate });
              } else {
-                 console.warn(`Calculated period length (${length}) for start ${format(startDate, 'yyyy-MM-dd')} is out of range [1-19]. Start: ${format(startDate, 'yyyy-MM-dd')}, End: ${format(finalEndDate, 'yyyy-MM-dd')}. Skipping.`);
+                 console.warn("Calculated period length (" + length + ") for start " + format(startDate, 'yyyy-MM-dd') + " is out of range [1-19]. Start: " + format(startDate, 'yyyy-MM-dd') + ", End: " + format(finalEndDate, 'yyyy-MM-dd') + ". Skipping.");
              }
         } else {
-            console.warn(`Could not determine valid end date for period starting ${format(startDate, 'yyyy-MM-dd')}`);
+            console.warn("Could not determine valid end date for period starting " + format(startDate, 'yyyy-MM-dd'));
         }
     });
 
@@ -356,7 +365,9 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
         const date = startOfDay(parseISO(entry.date));
         if (!isValid(date)) return;
 
+        // Pass the potentially null avgPeriodLength here. getCyclePhase needs to handle it.
         const phase = getCyclePhase(date, periodStartDates, avgCycleLength, avgPeriodLength, logData);
+
 
         const activityCount = entry.sexualActivityCount ?? 0;
         if (activityCount > 0) {
@@ -406,7 +417,7 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
         const lengthsOnly = cycleLengthsData.filter(c => c.endDate !== null).map(d => d.length);
         const firstHalfAvg = lengthsOnly.slice(0, Math.floor(lengthsOnly.length / 2)).reduce((a, b) => a + b, 0) / Math.floor(lengthsOnly.length / 2);
         const secondHalfAvg = lengthsOnly.slice(Math.ceil(lengthsOnly.length / 2)).reduce((a, b) => a + b, 0) / Math.ceil(lengthsOnly.length / 2);
-        if (Math.abs(firstHalfAvg - secondHalfAvg) < 1.5) { // Consider stable if difference is less than 1.5 days
+        if (Math.abs(firstHalfAvg - secondHalfAvg) < 1.5) {
             cycleLengthTrend = 'stable';
         } else if (secondHalfAvg > firstHalfAvg) {
             cycleLengthTrend = 'increasing';
@@ -420,12 +431,11 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
         const lastPeriodStartDate = periodStartDates[periodStartDates.length - 1];
         const nextStartDate = addDays(lastPeriodStartDate, avgCycleLength);
         const nextEndDate = addDays(nextStartDate, avgPeriodLength - 1);
-        predictedNextPeriod = `${format(nextStartDate, 'MMM do')} - ${format(nextEndDate, 'MMM do, yyyy')}`;
+        predictedNextPeriod = format(nextStartDate, 'MMM do') + " - " + format(nextEndDate, 'MMM do, yyyy');
     } else if (periodStartDates.length > 0 && avgCycleLength && isValid(periodStartDates[periodStartDates.length - 1])) {
-         // Case where period length is not known, predict only start
          const lastPeriodStartDate = periodStartDates[periodStartDates.length - 1];
          const nextStartDate = addDays(lastPeriodStartDate, avgCycleLength);
-         predictedNextPeriod = `Around ${format(nextStartDate, 'MMM do, yyyy')}`;
+         predictedNextPeriod = "Around " + format(nextStartDate, 'MMM do, yyyy');
     }
 
 
@@ -438,11 +448,11 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
         const estimatedOvulationDay = subDays(estimatedNextCycleStart, 14);
         const fertileWindowStart = subDays(estimatedOvulationDay, 5);
         const fertileWindowEnd = addDays(estimatedOvulationDay, 1);
-        fertileWindowString = `${format(fertileWindowStart, 'MMM do')} - ${format(fertileWindowEnd, 'MMM do')}`;
+        fertileWindowString = format(fertileWindowStart, 'MMM do') + " - " + format(fertileWindowEnd, 'MMM do');
 
          if (isWithinInterval(today, { start: fertileWindowStart, end: fertileWindowEnd })) {
             pregnancyChance = 'Higher';
-         } else if (isWithinInterval(today, { start: subDays(fertileWindowStart, 2), end: addDays(fertileWindowEnd, 2) })) { // Slightly wider window for moderate
+         } else if (isWithinInterval(today, { start: subDays(fertileWindowStart, 2), end: addDays(fertileWindowEnd, 2) })) {
              pregnancyChance = 'Moderate';
          } else {
              pregnancyChance = 'Low';
@@ -450,7 +460,7 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
     }
 
     const cycleLengths = cycleLengthsData.filter(c => c.endDate !== null).map(({ startDate, length }, index) => ({
-        label: `${format(startDate, 'MMM')} C${index + 1}`,
+        label: format(startDate, 'MMM') + " C" + (index + 1),
         length
     }));
 
@@ -460,10 +470,10 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
         if(i + 1 < periodStartDates.length) {
             const nextStartDate = periodStartDates[i+1];
             const length = differenceInDays(nextStartDate, currentStartDate);
-            if (length > 10 && length < 100) { // Basic validation
+            if (length > 10 && length < 100) {
                  rawCycleLengths.push({ startDate: currentStartDate, endDate: subDays(nextStartDate, 1), length});
             }
-        } else if (avgCycleLength && isValid(currentStartDate)) { // For the last/current cycle, use average if available
+        } else if (avgCycleLength && isValid(currentStartDate)) {
             rawCycleLengths.push({ startDate: currentStartDate, endDate: null, length: avgCycleLength});
         }
     }
@@ -471,7 +481,7 @@ const calculateCycleInsights = (logData: Record<string, LogData>): {
 
 
     const periodLengths = periodLengthsData.map(({ date, length }, index) => ({
-        label: `${format(date, 'MMM')} P${index + 1}`,
+        label: format(date, 'MMM') + " P" + (index + 1),
         length
     }));
 
@@ -524,22 +534,22 @@ const symptomChartConfig = {
 
 
 const formatNumber = (num: number | null | undefined, suffix: string = ''): string => {
-    return num !== null && num !== undefined ? `${num}${suffix}` : 'N/A';
+    return num !== null && num !== undefined ? num.toString() + suffix : 'N/A';
 };
 
 
 const CustomTooltipContent = ({ active, payload, label }: any) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
-    const configEntry = payload[0].payload.config; // Access config from payload if passed this way
+    const configEntry = payload[0].payload.config;
 
-    let labelText = configEntry?.label || payload[0].name || 'Value'; // Use config label if available
+    let labelText = configEntry?.label || payload[0].name || 'Value';
 
     return (
       <div className="rounded-lg border bg-background p-2 shadow-sm">
         <div className="grid grid-cols-1 gap-1.5">
           {label && <p className="text-sm text-muted-foreground">{label}</p>}
-           <p className="text-sm font-medium">{`${labelText}: ${payload[0].value}`}</p>
+           <p className="text-sm font-medium">{labelText + ": " + payload[0].value}</p>
         </div>
       </div>
     );
@@ -565,7 +575,6 @@ export default function InsightsPage() {
       const calculatedInsights = calculateCycleInsights(logData);
       setInsights(calculatedInsights);
     } else if (!isLoading && Object.keys(logData).length === 0) {
-        // Handle case where there's no log data after loading completes
         setInsights(calculateCycleInsights({}));
     }
   }, [logData, isLoading]);
@@ -580,34 +589,33 @@ export default function InsightsPage() {
 
   const handleGetTips = async () => {
     setIsTipsLoading(true);
-    setHealthTips(''); // Clear previous tips immediately
-    localStorage.removeItem(TIPS_STORAGE_KEY); // Clear cache
+    setHealthTips('');
+    localStorage.removeItem(TIPS_STORAGE_KEY);
     try {
         const currentPhase = getCyclePhase(
-            startOfDay(new Date()), // Current date
-            Object.values(logData) // Get all log entries
-                .filter(log => log.periodFlow && log.periodFlow !== 'none' && log.date) // Filter for period start days with valid dates
-                .map(log => parseISO(log.date!)) // Parse date strings to Date objects
-                .filter(isValid) // Ensure dates are valid after parsing
-                .sort((a, b) => a.getTime() - b.getTime()), // Sort period start dates chronologically
+            startOfDay(new Date()),
+            Object.values(logData)
+                .filter(log => log.periodFlow && log.periodFlow !== 'none' && log.date)
+                .map(log => parseISO(log.date!))
+                .filter(isValid)
+                .sort((a, b) => a.getTime() - b.getTime()),
             insights.avgCycleLength,
             insights.avgPeriodLength,
             logData
         );
 
-        // Get symptoms from the last 7 days of logged data
         const relevantSymptoms = Object.entries(logData)
-            .sort(([dateA], [dateB]) => parseISO(dateA).getTime() - parseISO(dateB).getTime()) // Sort by date
-            .slice(-7) // Take the last 7 entries (most recent week)
-            .flatMap(([, log]) => log.symptoms || []); // Get all symptoms, flatten array
-        const uniqueSymptoms = [...new Set(relevantSymptoms)]; // Ensure symptoms are unique
+            .sort(([dateA], [dateB]) => parseISO(dateA).getTime() - parseISO(dateB).getTime())
+            .slice(-7)
+            .flatMap(([, log]) => log.symptoms || []);
+        const uniqueSymptoms = [...new Set(relevantSymptoms)];
 
         const { tips } = await getMenstrualTips({
-            currentPhase: currentPhase !== 'Unknown' ? currentPhase : undefined, // Pass phase if known
-            recentSymptoms: uniqueSymptoms.length > 0 ? uniqueSymptoms : undefined, // Pass symptoms if any
+            currentPhase: currentPhase !== 'Unknown' ? currentPhase : undefined,
+            recentSymptoms: uniqueSymptoms.length > 0 ? uniqueSymptoms : undefined,
         });
         setHealthTips(tips);
-        localStorage.setItem(TIPS_STORAGE_KEY, tips); // Cache the new tips
+        localStorage.setItem(TIPS_STORAGE_KEY, tips);
     } catch (error) {
       console.error('Error fetching health tips:', error);
       toast({
@@ -621,16 +629,16 @@ export default function InsightsPage() {
   };
 
   const cycleLengthChartData = React.useMemo(() => insights.cycleLengths
-    .slice(-4) // Take only the last 4 entries for the chart
+    .slice(-4)
     .map(item => ({
       ...item,
-      fill: "var(--color-length)", // CSS variable for fill
-      name: item.label, // For tooltip fallback if config doesn't provide label
-      config: cycleLengthChartConfig.length // Pass the config entry for this data series
+      fill: "var(--color-length)",
+      name: item.label,
+      config: cycleLengthChartConfig.length
   })), [insights.cycleLengths]);
 
   const periodLengthChartData = React.useMemo(() => insights.periodLengths
-    .slice(-4) // Take only the last 4 entries for the chart
+    .slice(-4)
     .map(item => ({
       ...item,
       fill: "var(--color-length)",
@@ -658,7 +666,7 @@ export default function InsightsPage() {
         <div className="container mx-auto py-6 px-4 max-w-lg space-y-6">
              <h1 className="text-3xl font-bold text-center mb-8">Your Cycle Insights</h1>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 {[...Array(6)].map((_, i) => ( // Skeleton for 6 cards
+                 {[...Array(6)].map((_, i) => (
                     <Card key={i}>
                         <CardHeader><CardTitle><Skeleton className="h-7 w-3/4" /></CardTitle></CardHeader>
                         <CardContent className="space-y-3">
@@ -840,10 +848,10 @@ export default function InsightsPage() {
               <CardContent className="space-y-3 text-sm">
                 <div className="flex justify-between"><span>Total Count:</span> <span className="font-semibold">{insights.totalActivityCount}</span></div>
                 <div className="flex justify-between"><span>Days w/ Activity:</span> <span className="font-semibold">{insights.totalSexualActivityDays}</span></div>
-                <div className="flex justify-between"><span>Frequency:</span> <span className="font-semibold">{insights.activityFrequency > 0 ? `${insights.activityFrequency.toFixed(0)}% of days` : 'N/A'}</span></div>
+                <div className="flex justify-between"><span>Frequency:</span> <span className="font-semibold">{insights.activityFrequency > 0 ? insights.activityFrequency.toFixed(0) + "% of days" : 'N/A'}</span></div>
                 <div className="flex justify-between"><span>Protection Rate:</span> <span className="font-semibold">
                   {insights.protectionRate !== null
-                    ? `${insights.protectionRate.toFixed(0)}% of active days`
+                    ? insights.protectionRate.toFixed(0) + "% of active days"
                     : 'N/A'}
                 </span></div>
                 {insights.totalActivityCount > 0 && (
@@ -887,8 +895,8 @@ export default function InsightsPage() {
                         </TableCell>
                         <TableCell>{log.phase}</TableCell>
                         <TableCell className="text-right">
-                            <Button variant="ghost" size="icon" asChild>
-                                <Link href={`/log?date=${format(log.date, 'yyyy-MM-dd')}`} onClick={() => setIsActivityLogModalOpen(false)}>
+                            <Button variant="ghost" size="icon" asChild aria-label={'Edit log for ' + format(log.date, 'MMM dd, yyyy')}>
+                                <Link href={'/log?date=' + format(log.date, 'yyyy-MM-dd')} onClick={() => setIsActivityLogModalOpen(false)}>
                                     <Edit3 className="h-4 w-4 text-muted-foreground"/>
                                 </Link>
                             </Button>
@@ -927,12 +935,12 @@ export default function InsightsPage() {
                   <Eye className="mr-2 h-4 w-4" /> Full History
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-lg"> 
+              <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
                   <DialogTitle>Full Cycle Length History</DialogTitle>
                   <DialogDescription>Detailed view of all logged cycle lengths.</DialogDescription>
                 </DialogHeader>
-                <ScrollArea className="max-h-[60vh] pr-4"> 
+                <ScrollArea className="max-h-[60vh] pr-4">
                   {insights.rawCycleLengths.length > 0 ? (
                     <Table>
                       <TableHeader>
@@ -950,8 +958,8 @@ export default function InsightsPage() {
                              <TableCell>{cycle.endDate ? format(cycle.endDate, 'MMM dd, yyyy') : <span className="italic text-muted-foreground">Ongoing</span>}</TableCell>
                             <TableCell className="text-right">{cycle.length}</TableCell>
                             <TableCell className="text-right">
-                                <Button variant="ghost" size="icon" asChild>
-                                    <Link href={`/log?date=${format(cycle.startDate, 'yyyy-MM-dd')}`} onClick={() => setIsCycleHistoryModalOpen(false)}>
+                                <Button variant="ghost" size="icon" asChild aria-label={'Edit log for cycle starting ' + format(cycle.startDate, 'MMM dd, yyyy')}>
+                                    <Link href={'/log?date=' + format(cycle.startDate, 'yyyy-MM-dd')} onClick={() => setIsCycleHistoryModalOpen(false)}>
                                         <Edit3 className="h-4 w-4 text-muted-foreground"/>
                                     </Link>
                                 </Button>
@@ -1031,7 +1039,7 @@ export default function InsightsPage() {
                   <Eye className="mr-2 h-4 w-4" /> Full History
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-lg"> 
+              <DialogContent className="sm:max-w-lg">
                 <DialogHeader>
                   <DialogTitle>Full Period Length History</DialogTitle>
                   <DialogDescription>Detailed view of all logged period lengths.</DialogDescription>
@@ -1042,7 +1050,7 @@ export default function InsightsPage() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>Start Date</TableHead>
-                          <TableHead>End Date</TableHead> 
+                          <TableHead>End Date</TableHead>
                           <TableHead className="text-right">Length (Days)</TableHead>
                           <TableHead className="text-right">Edit</TableHead>
                         </TableRow>
@@ -1051,11 +1059,11 @@ export default function InsightsPage() {
                         {insights.rawPeriodLengths.sort((a,b) => b.startDate.getTime() - a.startDate.getTime()).map((period, index) => (
                           <TableRow key={index}>
                             <TableCell>{format(period.startDate, 'MMM dd, yyyy')}</TableCell>
-                            <TableCell>{format(period.endDate, 'MMM dd, yyyy')}</TableCell> 
+                            <TableCell>{format(period.endDate, 'MMM dd, yyyy')}</TableCell>
                             <TableCell className="text-right">{period.length}</TableCell>
                             <TableCell className="text-right">
-                              <Button variant="ghost" size="icon" asChild>
-                                <Link href={`/log?date=${format(period.startDate, 'yyyy-MM-dd')}`} onClick={() => setIsPeriodHistoryModalOpen(false)}>
+                              <Button variant="ghost" size="icon" asChild aria-label={'Edit log for period starting ' + format(period.startDate, 'MMM dd, yyyy')}>
+                                <Link href={'/log?date=' + format(period.startDate, 'yyyy-MM-dd')} onClick={() => setIsPeriodHistoryModalOpen(false)}>
                                   <Edit3 className="h-4 w-4 text-muted-foreground"/>
                                 </Link>
                               </Button>
@@ -1253,8 +1261,8 @@ export default function InsightsPage() {
                                 </TableCell>
                                 <TableCell>{log.phase}</TableCell>
                                 <TableCell className="text-right">
-                                    <Button variant="ghost" size="icon" asChild>
-                                        <Link href={`/log?date=${format(log.date, 'yyyy-MM-dd')}`} onClick={() => setIsSymptomLogModalOpen(false)}>
+                                    <Button variant="ghost" size="icon" asChild aria-label={'Edit log for ' + format(log.date, 'MMM dd, yyyy')}>
+                                        <Link href={'/log?date=' + format(log.date, 'yyyy-MM-dd')} onClick={() => setIsSymptomLogModalOpen(false)}>
                                             <Edit3 className="h-4 w-4 text-muted-foreground"/>
                                         </Link>
                                     </Button>
@@ -1279,8 +1287,3 @@ export default function InsightsPage() {
     </div>
   );
 }
-
-      
-
-
-

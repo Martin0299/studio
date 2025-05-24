@@ -1,20 +1,25 @@
 {
   "name": "LunaBloom",
-  "theme_color": "#000000",
-  "background_color": "#000000",
+  "theme_color": "#FFFFFF",
+  "background_color": "#FFFFFF",
   "short_name": "LunaBM",
   "id": "LunaBloom",
   "description": "📱 Luna Bloom – Creative Inspiration for the Modern Woman\nLuna Bloom is a beautifully designed lifestyle and inspiration app for creative, mindful women who love aesthetics, self-expression, and growth.\n\nImmerse yourself in a calming, elegant visual experience that blends minimalism with creativity. Whether you're looking for style ideas, design inspiration, or a moment of peace, Luna Bloom is your go-to digital sanctuary.\n\n✨ Key Features:\nElegant Visual Design – Soft colors, curated layouts, and a modern minimalist interface.\n\nCurated Inspiration – Explore categories like Glow, Create, Style, and Bloom – each filled with visual and written content that sparks creativity.\n\nSmooth &amp; Intuitive Navigation – Enjoy seamless browsing in a distraction-free environment.\n\nMobile-Optimized – Crafted to provide the best experience on your phone, with fast loading and full-screen support.\n\n🌿 Why You'll Love It:\nWhether you're a designer, artist, content creator, or simply someone who appreciates beauty, Luna Bloom offers a gentle, inspiring space to relax, reflect, and reconnect with your creative side.\n\nDownload now and let your creativity bloom. 🌸",
+  "start_url": "/",
+  "display": "standalone",
+  "scope": "/",
   "icons": [
     {
       "src": "/icons/icon-192x192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "/icons/icon-512x512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any"
     },
     {
       "src": "/icons/maskable-icon-512x512.png",
@@ -23,7 +28,11 @@
       "purpose": "maskable"
     }
   ],
-  "start_url": "/",
-  "display": "standalone",
-  "scope": "/"
+  "categories": [
+    "lifestyle",
+    "health",
+    "personalization",
+    "fitness",
+    "medical"
+  ]
 }
