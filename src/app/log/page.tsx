@@ -7,13 +7,14 @@ interface LogPageProps {
 }
 
 export default function LogPage(props: LogPageProps) {
-  // Access searchParams via props.searchParams to minimize direct manipulation
-  // of the prop object that might trigger Next.js dev warnings.
-  const dateParam = (props.searchParams && typeof props.searchParams.date === 'string')
-    ? props.searchParams.date
-    : undefined;
+  let dateParam: string | undefined = undefined;
 
-  let selectedDate = startOfDay(new Date()); // Default to today, ensuring time is 00:00:00
+  // Explicitly check if searchParams exists and then access the 'date' property using bracket notation.
+  if (props.searchParams && typeof props.searchParams['date'] === 'string') {
+    dateParam = props.searchParams['date'];
+  }
+
+  let selectedDate = startOfDay(new Date()); // Default to today
 
   if (dateParam) {
     // Parse the date string, ensuring it's treated as local timezone
