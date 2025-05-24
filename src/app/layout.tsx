@@ -77,16 +77,17 @@ export default function RootLayout({
       <Head>
         <title>LunaBloom</title>
         <meta name="description" content="📱 Luna Bloom – Creative Inspiration for the Modern Woman" />
-        <link rel="manifest" href="/manifest.json" />
-        <meta name="theme-color" content="#FFFFFF"/> {/* Updated to white */}
+        <link rel="manifest" href="/manifest.json" /> {/* Local manifest */}
+        <meta name="theme-color" content="#FFFFFF"/>
         {/* iOS PWA Meta Tags */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="LunaBloom" />
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
-        
-        {/* Progressier PWA Script - Updated */}
-        <script defer src="https://progressier.app/OegYkpgaXT4nbstj5zfk/script.js"></script>
+
+        {/* Progressier PWA Script & Manifest - As per image */}
+        <link rel="manifest" href="https://progressier.app/1D2eOzefNR85Iygrex7u/progressier.json"/>
+        <script defer src="https://progressier.app/1D2eOzefNR85Iygrex7u/script.js"></script>
       </Head>
       <body className={cn(
           inter.variable,
