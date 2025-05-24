@@ -37,7 +37,6 @@ type AccentColor = 'coral' | 'gold';
 const Form = ({ children }: { children: React.ReactNode }) => <>{children}</>;
 const FormItem = ({ children, ...props }: React.HTMLAttributes<HTMLDivElement>) => <div {...props}>{children}</div>;
 const FormControl = ({ children }: { children: React.ReactNode }) => <>{children}</>;
-const FormLabel = ({ children, htmlFor, ...props }: React.LabelHTMLAttributes<HTMLLabelElement> & { htmlFor?: string }) => <label htmlFor={htmlFor} {...props}>{children}</label>;
 const FormDescription = ({ children, ...props }: React.HTMLAttributes<HTMLParagraphElement>) => <p className="text-[0.8rem] text-muted-foreground" {...props}>{children}</p>;
 
 
@@ -60,11 +59,11 @@ export default function SettingsPage() {
     const [appVersion, setAppVersion] = React.useState<string>('');
 
     // Valid keys for settings import (excluding cycleLog_ which is handled by prefix)
-    const validImportKeys = [
+    const validImportKeys = React.useMemo(() => [
         'theme', 'accentColor', 'appLock', 'appPinStatus', 'appPinHash', 'healthTipsCache',
         'babyPlanningChecklist', 'babyPlanningLifestyleInputs',
         'babyPlanningLifestylePlan', 'babyPlanningMealPlanInputs', 'babyPlanningMealPlan'
-    ];
+    ], []);
 
 
     // --- Effects for Appearance, Security, and App Version ---
@@ -365,7 +364,7 @@ export default function SettingsPage() {
 
     const handleDeleteAllDataConfirmed = () => {
         deleteAllData();
-        toast({ variant: "destructive", title: "Data Deleted", description: "All your cycle data has been permanently removed." });
+        toast({ variant: "destructive", title: "Data Deleted", description: "All your app data has been permanently removed." });
         setDeleteConfirmInput('');
         clearPin();
         setPinIsSet(false);
@@ -434,7 +433,7 @@ export default function SettingsPage() {
                     <CardContent className="space-y-4">
                         <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
                             <div className="space-y-0.5">
-                                <FormLabel htmlFor="app-lock-switch" className="text-base flex items-center">Enable App Lock</FormLabel>
+                                <Label htmlFor="app-lock-switch" className="text-base flex items-center">Enable App Lock</Label>
                             </div>
                             <FormControl>
                                 <Switch
@@ -544,4 +543,3 @@ export default function SettingsPage() {
         </Form>
     );
 }
-
