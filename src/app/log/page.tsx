@@ -1,17 +1,22 @@
+
 import LogEntryForm from '@/components/log/log-entry-form';
 import { parseISO, isValid, startOfDay } from 'date-fns';
 
 export default function LogPage({
-  searchParams,
+  searchParams: initialSearchParams, // Rename to make it clear we're processing it
 }: {
   searchParams?: { [key: string]: string | string[] | undefined };
 }) {
-  // Explicitly extract only the 'date' property to avoid any unintended enumeration
-  // of the searchParams object within this Server Component.
-  const dateParam = (searchParams && typeof searchParams === 'object' && 'date' in searchParams)
-    ? searchParams.date as string | undefined
-    : undefined;
+  // Create a new, plain object containing only the 'date' parameter, if it exists.
+  // This is a defensive measure to ensure we are not inadvertently working with
+  // a proxied 'searchParams' object that might trigger enumeration warnings downstream
+  // by Next.js internals or third-party scripts.
+  const relevantParams: { date?: string } = {};
+  if (initialSearchParams && typeof initialSearchParams.date === 'string') {
+    relevantParams.date = initialSearchParams.date;
+  }
 
+  const dateParam = relevantParams.date;
   let selectedDate = startOfDay(new Date()); // Default to today, ensuring time is 00:00:00
 
   if (dateParam) {
@@ -24,7 +29,6 @@ export default function LogPage({
       console.warn(`Invalid date parameter received: ${dateParam}. Defaulting to today.`);
     }
   }
-
 
   return (
     <div className="container mx-auto py-6 px-4 max-w-md">
