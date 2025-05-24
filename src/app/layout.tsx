@@ -85,9 +85,6 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="LunaBloom" />
         <link rel="apple-touch-icon" href="/icons/icon-192x192.png" />
 
-        {/* Progressier PWA Script & Manifest - As per image */}
-        <link rel="manifest" href="https://progressier.app/loN7yQ2HZQgC0vvDLrFc/progressier.json"/>
-        <script defer src="https://progressier.app/loN7yQ2HZQgC0vvDLrFc/script.js"></script>
       </Head>
       <body className={cn(
           inter.variable,
